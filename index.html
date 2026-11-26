@@ -7,12 +7,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Decode the clue, crack the code, escape the room.">
+  <meta name="description" content="Crack the secret code and escape the room.">
   <title>Crack The Code</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=5">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
   <div id="bg"></div>
@@ -31,11 +31,10 @@
 
     <section id="clue-card">
       <div class="clue-head">
-        <span class="label">CLUE</span>
-        <span id="clue-note" class="hidden"></span>
+        <span class="label">THE CODE</span>
         <button id="hint-btn">💡 HINT</button>
       </div>
-      <div id="clue"></div>
+      <div id="code"></div>
     </section>
 
     <section id="board">
@@ -57,8 +56,6 @@
       <div id="m-title"></div>
       <div id="m-stars"></div>
       <div id="m-line"></div>
-      <div class="explain-label">HOW THE CLUE WORKED</div>
-      <div id="m-explain"></div>
       <div id="m-extra"></div>
       <div id="m-coins" class="hidden"></div>
       <button id="m-button" class="big-btn">NEXT</button>
@@ -85,8 +82,7 @@
     <div class="card">
       <div id="help-title">HOW TO PLAY</div>
       <ol>
-        <li>Each box of the <b>clue</b> hides one digit of the code.</li>
-        <li>Work out the trick, type the code and press <b>✓</b>.</li>
+        <li>Guess the secret code: type the digits and press <b>✓</b>. No digit is used twice.</li>
         <li>
           <span class="dot hit">7</span> right digit, right place<br>
           <span class="dot near">3</span> in the code, wrong place<br>
@@ -94,16 +90,16 @@
         </li>
         <li>You have <b>4 tries</b>. Each win pays <b>40 🪙</b> — watch an ad to double it.</li>
         <li><b>💡 Hint</b> shows one correct digit in its place. 3 hints cost <b>700 🪙</b>.</li>
-        <li>🔒 A padlocked box opens when you find the digit in the box with the 🔑.<br>
-            🕸️ A spider web breaks once you have found 3 other digits.</li>
+        <li>🔒 A padlocked box hides its colours until you find the digit in the box with the 🔑.<br>
+            🕸️ A spider web hides its colours until you have found 3 other digits.</li>
         <li>From level 101 codes have <b>5 digits</b>, from level 201 <b>6 digits</b>.</li>
       </ol>
       <button id="help-close" class="big-btn">LET'S PLAY</button>
     </div>
   </div>
 
-  <script src="sounds.js?v=5"></script>
-  <script src="ads.js?v=5"></script>
-  <script src="game.js?v=5"></script>
+  <script src="sounds.js?v=6"></script>
+  <script src="ads.js?v=6"></script>
+  <script src="game.js?v=6"></script>
 </body>
 </html>

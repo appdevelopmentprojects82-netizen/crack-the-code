@@ -1,8 +1,8 @@
 // Keeps the game working offline once it has been opened.
 // Change VERSION whenever you change a file, so phones fetch the new one.
-const VERSION = 'ctcm-5';
+const VERSION = 'ctcm-6';
 const FILES = [
-  './', 'index.html', 'style.css?v=5', 'sounds.js?v=5', 'ads.js?v=5', 'game.js?v=5', 'manifest.json',
+  './', 'index.html', 'style.css?v=6', 'sounds.js?v=6', 'ads.js?v=6', 'game.js?v=6', 'manifest.json',
   'icons/icon-192.png', 'icons/icon-512.png',
   'pictures/1.jpg', 'pictures/2.jpg', 'pictures/3.jpg', 'pictures/4.jpg', 'pictures/5.jpg'
 ];
