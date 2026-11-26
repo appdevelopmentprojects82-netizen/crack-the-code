@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0d12">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Decode the clue, crack the 4-digit code, escape the room.">
+  <title>Crack The Code</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css?v=4">
+</head>
+<body>
+  <div id="bg"></div>
+
+  <main id="app">
+    <header id="top">
+      <span class="chip" id="level">LEVEL 1</span>
+      <span class="chip" id="stars">⭐ 0</span>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="mute-btn" aria-label="Music on / off">🔊</button>
+      <button class="icon-btn" id="help-btn" aria-label="How to play">?</button>
+    </header>
+
+    <h1>CRACK THE CODE<br><small>TO ESCAPE</small></h1>
+
+    <section id="clue-card">
+      <div class="clue-head">
+        <span class="label">CLUE</span>
+        <span id="clue-note" class="hidden"></span>
+        <button id="hint-btn">💡 HINT <b id="hint-count">3</b></button>
+      </div>
+      <div id="clue"></div>
+      <div id="hint-text" class="hidden"></div>
+    </section>
+
+    <section id="board">
+      <div id="tries">4 TRIES LEFT</div>
+      <div id="grid"></div>
+    </section>
+
+    <section id="keypad"></section>
+  </main>
+
+  <div id="toast"></div>
+
+  <!-- win / lose -->
+  <div id="modal" class="modal hidden">
+    <div class="card">
+      <div id="m-icon"></div>
+      <div id="m-title"></div>
+      <div id="m-stars"></div>
+      <div id="m-line"></div>
+      <div class="explain-label">HOW THE CLUE WORKED</div>
+      <div id="m-explain"></div>
+      <div id="m-extra"></div>
+      <button id="m-button" class="big-btn">NEXT</button>
+    </div>
+  </div>
+  <div id="confetti"></div>
+
+  <!-- how to play -->
+  <div id="help" class="modal hidden">
+    <div class="card">
+      <div id="help-title">HOW TO PLAY</div>
+      <ol>
+        <li>Each tile of the <b>clue</b> hides one digit of a 4-digit code.</li>
+        <li>Work out the trick, type the code and press <b>✓</b>.</li>
+        <li>
+          <span class="dot hit">7</span> right digit, right place<br>
+          <span class="dot near">3</span> in the code, wrong place<br>
+          <span class="dot miss">5</span> not in the code
+        </li>
+        <li>You have <b>4 tries</b>. Crack it on the first try for ★★★ and a free hint.</li>
+        <li>Stuck? <b>💡 Hint</b> once to learn the trick, twice to see a digit.</li>
+      </ol>
+      <button id="help-close" class="big-btn">LET'S PLAY</button>
+    </div>
+  </div>
+
+  <script src="sounds.js?v=4"></script>
+  <script src="game.js?v=4"></script>
+</body>
+</html>

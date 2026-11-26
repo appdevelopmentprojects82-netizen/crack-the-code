@@ -1,0 +1,150 @@
+:root {
+  --hit:  #25c45f;
+  --near: #e6ac1e;
+  --miss: #3a3f4b;
+  --accent: #ffd84a;
+  --card: rgba(10, 12, 18, 0.78);
+  --line: rgba(255, 255, 255, 0.14);
+  --text: #f4f4f6;
+  --muted: #a9adb8;
+  --font: "Segoe UI", Roboto, "Helvetica Neue", Arial, "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji",
+          "Segoe UI Symbol", "Noto Sans Symbols 2", "Microsoft YaHei", "Nirmala UI", sans-serif;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: #0b0d12; color: var(--text); font-family: var(--font);
+  overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation;
+}
+#bg {
+  position: fixed; inset: 0; z-index: -1;
+  background: linear-gradient(rgba(5,6,10,.55), rgba(5,6,10,.82)), var(--bg, none) center / cover no-repeat, #0b0d12;
+  transition: background-image .4s;
+}
+button { font: inherit; color: inherit; cursor: pointer; border: 0; }
+button:disabled { cursor: default; }
+.hidden { display: none !important; }
+
+#app {
+  height: 100dvh; max-width: 480px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: max(10px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));
+}
+
+/* ---- top bar ---- */
+#top { display: flex; align-items: center; gap: 8px; }
+.spacer { flex: 1; }
+.chip { background: var(--card); border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; font-weight: 800; font-size: 14px; letter-spacing: .5px; }
+#level { color: var(--accent); }
+.icon-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--card); border: 1px solid var(--line); font-size: 17px; font-weight: 800; }
+
+h1 { margin: 2px 0 0; text-align: center; font-weight: 900; font-size: 26px; line-height: 1; letter-spacing: 1px;
+     color: var(--accent); text-shadow: 0 2px 10px rgba(0,0,0,.8); }
+h1 small { font-size: 15px; letter-spacing: 6px; color: var(--text); }
+
+/* ---- clue ---- */
+#clue-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 10px 12px 12px; backdrop-filter: blur(6px); }
+.clue-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.clue-head .label { font-weight: 900; font-size: 13px; letter-spacing: 3px; color: var(--muted); }
+#clue-note { background: var(--accent); color: #111; font-weight: 900; border-radius: 8px; padding: 1px 8px; font-size: 15px; }
+#hint-btn { margin-left: auto; background: rgba(255, 216, 74, .14); border: 1px solid rgba(255, 216, 74, .5); color: var(--accent);
+            border-radius: 99px; padding: 5px 12px; font-weight: 800; font-size: 13px; }
+#hint-btn b { background: var(--accent); color: #111; border-radius: 99px; padding: 0 7px; margin-left: 3px; }
+#hint-btn:disabled { opacity: .4; }
+
+#clue { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+#clue.mid, #clue.long { grid-template-columns: repeat(2, 1fr); }
+.clue-part {
+  min-height: 64px; display: flex; align-items: center; justify-content: center; text-align: center;
+  background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 12px; padding: 6px 4px;
+  font-size: 32px; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere;
+}
+#clue.mid .clue-part { font-size: 26px; min-height: 52px; }
+#clue.long .clue-part { font-size: 19px; min-height: 48px; letter-spacing: .5px; }
+#hint-text { margin-top: 9px; font-size: 14px; line-height: 1.35; color: var(--accent); white-space: pre-line; }
+
+/* ---- guesses ---- */
+#board { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+#tries { font-size: 12px; font-weight: 800; letter-spacing: 2px; color: var(--muted); }
+#grid { display: flex; flex-direction: column; gap: 7px; }
+.row { display: flex; gap: 7px; }
+.cell {
+  width: var(--cell, 54px); height: var(--cell, 54px);
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--line); border-radius: 12px; background: rgba(10,12,18,.55);
+  font-size: calc(var(--cell, 54px) * .52); font-weight: 900;
+}
+.row.active .cell { border-color: rgba(255,255,255,.4); }
+.cell.typed { border-color: #fff; animation: pop .12s ease-out; }
+.cell.hit, .cell.near, .cell.miss { border-color: transparent; }
+.row.reveal .cell { animation: flip .45s ease-out both; }
+.cell.hit  { background: var(--hit); }
+.cell.near { background: var(--near); }
+.cell.miss { background: var(--miss); color: #c9ccd4; }
+@keyframes flip { 0% { transform: rotateX(90deg); } 100% { transform: none; } }
+@keyframes pop { 50% { transform: scale(1.1); } }
+
+/* ---- keypad ---- */
+#keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+#keypad button {
+  height: min(62px, 7.6dvh); border-radius: 14px; font-size: 26px; font-weight: 800;
+  background: rgba(40, 44, 56, .92); border: 1px solid var(--line); box-shadow: 0 3px 0 rgba(0,0,0,.5);
+}
+#keypad button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.5); }
+#keypad button.hit  { background: var(--hit); }
+#keypad button.near { background: var(--near); }
+#keypad button.miss { background: #1b1e25; color: #5d6270; }
+#keypad #enter { background: var(--accent); color: #111; }
+#keypad #enter:disabled { background: rgba(255, 216, 74, .3); color: rgba(0,0,0,.5); }
+#keypad #back { font-size: 24px; }
+
+/* ---- toast ---- */
+#toast {
+  position: fixed; left: 50%; top: 18%; transform: translate(-50%, -10px); max-width: 88vw;
+  background: #fff; color: #111; font-weight: 800; font-size: 14px; text-align: center;
+  padding: 10px 16px; border-radius: 12px; opacity: 0; pointer-events: none; transition: .25s; z-index: 30;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+.shake { animation: shake .35s; }
+@keyframes shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
+
+/* ---- modals ---- */
+.modal { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+         padding: 20px; background: rgba(0,0,0,.72); animation: fade .25s; }
+@keyframes fade { from { opacity: 0; } }
+.card { width: 100%; max-width: 400px; max-height: 92dvh; overflow-y: auto; text-align: center;
+        background: #141720; border: 1px solid var(--line); border-radius: 22px; padding: 22px 20px; animation: rise .3s ease-out; }
+@keyframes rise { from { transform: translateY(30px) scale(.95); } }
+#m-icon { font-size: 54px; }
+#m-title { font-size: 32px; font-weight: 900; letter-spacing: 2px; margin: 4px 0; }
+.won #m-title { color: var(--hit); }
+.lost #m-title { color: #ff5a5a; }
+#m-stars { font-size: 38px; color: var(--accent); letter-spacing: 4px; }
+#m-line { font-size: 19px; font-weight: 700; margin: 6px 0 14px; }
+.explain-label { font-size: 11px; font-weight: 900; letter-spacing: 2px; color: var(--muted); }
+#m-explain { font-size: 14px; line-height: 1.45; margin: 4px 0 10px; white-space: pre-line; text-align: left;
+             background: rgba(255,255,255,.05); border-radius: 12px; padding: 10px 12px; }
+#m-extra { font-size: 13px; color: var(--accent); min-height: 4px; margin-bottom: 12px; }
+.big-btn { width: 100%; background: var(--accent); color: #111; font-weight: 900; font-size: 18px; letter-spacing: 1px;
+           border-radius: 14px; padding: 14px; }
+
+#help-title { font-size: 24px; font-weight: 900; color: var(--accent); letter-spacing: 2px; margin-bottom: 6px; }
+#help ol { text-align: left; padding-left: 20px; font-size: 15px; line-height: 1.5; margin: 0 0 16px; }
+#help li { margin: 8px 0; }
+.dot { display: inline-flex; width: 24px; height: 24px; border-radius: 6px; align-items: center; justify-content: center;
+       font-weight: 900; font-size: 14px; margin: 2px 6px 2px 0; vertical-align: middle; }
+.dot.hit { background: var(--hit); } .dot.near { background: var(--near); } .dot.miss { background: var(--miss); }
+
+/* ---- confetti ---- */
+#confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 25; }
+#confetti i { position: absolute; top: -20px; width: 9px; height: 15px; border-radius: 2px; animation: fall linear forwards; }
+@keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+
+/* short phones: tighten everything */
+@media (max-height: 700px) {
+  h1 { display: none; }
+  .clue-part { min-height: 46px; font-size: 26px; }
+  #clue.mid .clue-part, #clue.long .clue-part { min-height: 40px; }
+  #app { gap: 7px; }
+  #keypad button { height: 7dvh; }
+}
