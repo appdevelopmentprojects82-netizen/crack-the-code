@@ -12,22 +12,93 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="preload" as="image" href="art/splash.jpg">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <div id="bg"></div>
 
-  <main id="app">
-    <header id="top">
-      <span class="chip" id="level">LEVEL 1</span>
-      <span class="chip" id="stars">⭐ 0</span>
-      <span class="chip" id="coins">🪙 0</span>
+  <!-- ===================== LOADING SCREEN ===================== -->
+  <div id="splash">
+    <div class="splash-art"></div>
+    <div class="splash-digits" aria-hidden="true"></div>
+    <div class="splash-title">CRACK<br>THE CODE<small>ESCAPE THE ROOM</small></div>
+    <div class="splash-load">
+      <div class="bar"><i id="load-bar"></i></div>
+      <div id="load-text">LOADING…</div>
+    </div>
+  </div>
+
+  <!-- ===================== HOME ===================== -->
+  <section id="home" class="screen wood hidden">
+    <header class="home-top">
+      <button id="pfp-btn" class="pfp" aria-label="Your profile"></button>
       <span class="spacer"></span>
-      <button class="icon-btn" id="mute-btn" aria-label="Music on / off">🔊</button>
-      <button class="icon-btn" id="help-btn" aria-label="How to play">?</button>
+      <button class="heart" id="home-lives" aria-label="Lives"><span></span></button>
+      <span class="chip coin-chip" id="home-coins">🪙 0</span>
+      <button class="icon-btn" id="settings-btn" aria-label="Settings">
+        <svg viewBox="0 0 24 24"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.4 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.5 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+      </button>
     </header>
 
-    <h1>CRACK THE CODE<br><small>TO ESCAPE</small></h1>
+    <div class="home-title">CRACK THE CODE</div>
+
+    <div class="home-mid">
+      <button id="play-btn" aria-label="Play the next level">
+        <span class="plaque-small">LEVEL</span>
+        <span id="play-level">1</span>
+        <span class="plaque-play">▶ PLAY</span>
+      </button>
+      <div id="play-note"></div>
+    </div>
+
+    <button id="home-ad" class="ad-coins-btn">🎬 WATCH AD <b>+100 🪙</b></button>
+  </section>
+
+  <!-- ===================== SHOP ===================== -->
+  <section id="shop-screen" class="screen wood hidden">
+    <header class="page-top">
+      <div class="page-title">SHOP</div>
+      <span class="spacer"></span>
+      <span class="chip coin-chip" id="shop-coins">🪙 0</span>
+    </header>
+    <div class="shop-list" id="shop-list"></div>
+    <div class="shop-foot" id="shop-foot"></div>
+  </section>
+
+  <!-- ===================== LEADERBOARD ===================== -->
+  <section id="ranks" class="screen wood hidden">
+    <header class="page-top">
+      <div class="page-title">LEADERBOARD</div>
+    </header>
+    <div id="ranks-body"></div>
+  </section>
+
+  <!-- bottom icons (no labels): shop, home, leaderboard -->
+  <nav id="nav" class="hidden">
+    <button data-go="shop" aria-label="Shop">
+      <svg viewBox="0 0 24 24"><path d="M7 7V6a5 5 0 0 1 10 0v1h2.2a1 1 0 0 1 1 .9l1 13a1 1 0 0 1-1 1.1H3.8a1 1 0 0 1-1-1.1l1-13a1 1 0 0 1 1-.9zm2 0h6V6a3 3 0 0 0-6 0zm-1 3.5a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm8 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z"/></svg>
+    </button>
+    <button data-go="home" aria-label="Home">
+      <svg viewBox="0 0 24 24"><path d="M12 2.6 1.8 11.4a1 1 0 0 0 .7 1.8H4.5V21a1 1 0 0 0 1 1h4.5v-6.2h4V22h4.5a1 1 0 0 0 1-1v-7.8h2a1 1 0 0 0 .7-1.8z"/></svg>
+    </button>
+    <button data-go="ranks" aria-label="Leaderboard">
+      <svg viewBox="0 0 24 24"><path d="M9 9h6v13H9zM2 13h6v9H2zm14 3h6v6h-6zM12 1.5l1.1 2.3 2.5.3-1.8 1.7.4 2.5-2.2-1.2-2.2 1.2.4-2.5-1.8-1.7 2.5-.3z"/></svg>
+    </button>
+  </nav>
+
+  <!-- ===================== THE GAME ===================== -->
+  <main id="app" class="screen hidden">
+    <header id="top">
+      <button class="icon-btn" id="home-btn" aria-label="Home">
+        <svg viewBox="0 0 24 24"><path d="M12 2.6 1.8 11.4a1 1 0 0 0 .7 1.8H4.5V21a1 1 0 0 0 1 1h4.5v-6.2h4V22h4.5a1 1 0 0 0 1-1v-7.8h2a1 1 0 0 0 .7-1.8z"/></svg>
+      </button>
+      <span class="chip" id="level">LEVEL 1</span>
+      <span class="spacer"></span>
+      <button class="heart small" id="lives-chip" aria-label="Lives"><span id="lives">5</span></button>
+      <span class="chip coin-chip" id="coins">🪙 0</span>
+      <button class="icon-btn" id="help-btn" aria-label="How to play">?</button>
+    </header>
 
     <section id="clue-card">
       <div class="clue-head">
@@ -64,10 +135,10 @@
   </div>
   <div id="confetti"></div>
 
-  <!-- buy hints -->
+  <!-- buy hints (inside a level) -->
   <div id="shop" class="modal hidden">
     <div class="card">
-      <div id="m-icon">💡</div>
+      <div class="m-big">💡</div>
       <div id="shop-title">GET 3 HINTS</div>
       <div class="shop-text">Each hint shows one correct digit in its place.</div>
       <div id="shop-have"></div>
@@ -77,7 +148,62 @@
     </div>
   </div>
 
-  <!-- how to play -->
+  <!-- lives -->
+  <div id="lives-modal" class="modal hidden">
+    <div class="card">
+      <div class="heart big"><span id="lm-count">0</span></div>
+      <div class="sheet-title" id="lm-title">OUT OF LIVES</div>
+      <div class="shop-text" id="lm-text"></div>
+      <div id="lm-timer"></div>
+      <button id="lm-refill" class="big-btn">REFILL ❤️ · 1500 🪙</button>
+      <div id="lm-short"></div>
+      <button id="lm-close" class="link-btn">CLOSE</button>
+    </div>
+  </div>
+
+  <!-- profile -->
+  <div id="profile" class="modal hidden">
+    <div class="card">
+      <div class="pfp huge" id="pf-pic"></div>
+      <label class="field-label" for="pf-name">USERNAME</label>
+      <input id="pf-name" maxlength="16" autocomplete="off" spellcheck="false">
+      <div class="pf-stats">
+        <div><b id="pf-level">1</b><span>LEVEL</span></div>
+        <div><b id="pf-stars">0</b><span>STARS ⭐</span></div>
+        <div><b id="pf-wins">0</b><span>ESCAPES</span></div>
+      </div>
+      <div class="field-label">CHOOSE YOUR CHARACTER</div>
+      <div id="pf-grid"></div>
+      <button id="pf-done" class="big-btn">DONE</button>
+    </div>
+  </div>
+
+  <!-- settings -->
+  <div id="settings" class="modal hidden">
+    <div class="card">
+      <div class="sheet-title">SETTINGS</div>
+      <div class="set-row"><span>🔈 Sound</span><button class="toggle" id="set-sfx"></button></div>
+      <div class="set-row"><span>🎵 Music</span><button class="toggle" id="set-music"></button></div>
+      <div class="set-row"><span>📳 Vibration</span><button class="toggle" id="set-vibe"></button></div>
+      <div class="set-row"><span>🔔 Notifications</span><button class="toggle" id="set-notify"></button></div>
+      <div id="set-note"></div>
+      <button id="set-restore" class="wide-btn">RESTORE PURCHASES</button>
+      <button id="set-help" class="wide-btn">HELP &amp; SUPPORT</button>
+      <button id="set-close" class="big-btn">CLOSE</button>
+    </div>
+  </div>
+
+  <!-- messages (purchases, restore...) -->
+  <div id="notice" class="modal hidden">
+    <div class="card">
+      <div class="m-big" id="nt-icon"></div>
+      <div class="sheet-title" id="nt-title"></div>
+      <div class="shop-text" id="nt-text"></div>
+      <button id="nt-ok" class="big-btn">OK</button>
+    </div>
+  </div>
+
+  <!-- how to play / help & support -->
   <div id="help" class="modal hidden">
     <div class="card">
       <div id="help-title">HOW TO PLAY</div>
@@ -89,17 +215,21 @@
           <span class="dot miss">5</span> not in the code
         </li>
         <li>You have <b>4 tries</b>. Each win pays <b>40 🪙</b> — watch an ad to double it.</li>
+        <li>Losing a level costs <b>1 ❤️</b>. You have 5 lives; one comes back every 30 minutes, or refill all 5 for <b>1500 🪙</b>.</li>
         <li><b>💡 Hint</b> shows one correct digit in its place. 3 hints cost <b>700 🪙</b>.</li>
         <li>🔒 A padlocked box hides its colours until you find the digit in the box with the 🔑.<br>
             🕸️ A spider web hides its colours until you have found 3 other digits.</li>
         <li>From level 101 codes have <b>5 digits</b>, from level 201 <b>6 digits</b>.</li>
       </ol>
+      <div id="support-box"></div>
       <button id="help-close" class="big-btn">LET'S PLAY</button>
     </div>
   </div>
 
-  <script src="sounds.js?v=6"></script>
-  <script src="ads.js?v=6"></script>
-  <script src="game.js?v=6"></script>
+  <script src="sounds.js?v=7"></script>
+  <script src="ads.js?v=7"></script>
+  <script src="shop.js?v=7"></script>
+  <script src="game.js?v=7"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

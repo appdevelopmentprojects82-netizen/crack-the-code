@@ -15,6 +15,10 @@ const START_COINS      = 0;     // coins a new player starts with
 const HINT_PACK_PRICE  = 700;   // coins for a pack of hints
 const HINT_PACK_SIZE   = 3;     // hints in one pack
 const PICTURES         = 5;     // pictures/1.jpg ... 5.jpg, one per level, repeating
+const LIVES_MAX        = 5;     // losing a level costs one life
+const LIFE_REFILL_PRICE = 1500; // coins to fill all lives again
+const LIFE_REGEN_MINUTES = 30;  // one free life comes back every 30 minutes (0 = never)
+const AD_COINS         = 100;   // coins for watching an ad from the home page or shop
 
 // Code length: 4 digits up to level 100, 5 digits from 101, 6 digits from 201.
 function digitsForLevel(level) { return level > 200 ? 6 : level > 100 ? 5 : 4; }
@@ -55,13 +59,54 @@ const Game = (function () {
     if (!s || !(s.level >= 1)) s = { level: 1, stars: 0, cur: null, seenHelp: false };
     if (typeof s.coins !== 'number') { s.coins = START_COINS; s.hints = 0; }   // the old free hints are gone
     if (typeof s.hints !== 'number') s.hints = 0;
+    if (typeof s.lives !== 'number') { s.lives = LIVES_MAX; s.lifeAt = null; }
+    if (typeof s.wins !== 'number') s.wins = Math.max(0, s.level - 1);
+    if (typeof s.avatar !== 'number') s.avatar = 0;
+    if (!s.name) s.name = randomName();
+    if (!s.settings) s.settings = { vibrate: true, notify: false };
+    s.noAds = !!s.noAds;
     if (s.cur) {                                // saves from older versions
       s.cur.revealed = s.cur.revealed || [];
       s.cur.locks = s.cur.locks || {};
     }
     return s;
   }
+  function randomName() {
+    const a = ['Swift', 'Silent', 'Clever', 'Brave', 'Lucky', 'Sneaky', 'Golden', 'Shadow', 'Rapid', 'Mystic', 'Cosmic', 'Wild',
+               'Sharp', 'Bold', 'Frosty', 'Turbo', 'Witty', 'Iron', 'Neon', 'Royal'];
+    const b = ['Fox', 'Owl', 'Tiger', 'Panda', 'Wolf', 'Falcon', 'Otter', 'Raven', 'Lynx', 'Cobra', 'Koala', 'Shark', 'Phoenix',
+               'Ninja', 'Wizard', 'Rider', 'Hunter', 'Spark', 'Comet', 'Cracker'];
+    return pick(a) + pick(b) + Math.floor(100 + Math.random() * 900);
+  }
   function store() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* private mode */ } }
+
+  // ======================= LIVES ==========================================
+  const LIFE_MS = LIFE_REGEN_MINUTES * 60000;
+  function regenLives() {
+    if (save.lives >= LIVES_MAX) { save.lives = LIVES_MAX; save.lifeAt = null; return; }
+    if (!LIFE_MS) return;
+    if (!save.lifeAt) { save.lifeAt = Date.now(); store(); }
+    const gained = Math.floor((Date.now() - save.lifeAt) / LIFE_MS);
+    if (gained > 0) {
+      save.lives = Math.min(LIVES_MAX, save.lives + gained);
+      save.lifeAt = save.lives >= LIVES_MAX ? null : save.lifeAt + gained * LIFE_MS;
+      store();
+      if (window.App) App.livesChanged(save.lives >= LIVES_MAX);
+    }
+  }
+  function nextLifeIn() { return save.lives >= LIVES_MAX || !LIFE_MS || !save.lifeAt ? 0 : Math.max(0, save.lifeAt + LIFE_MS - Date.now()); }
+  function loseLife() {
+    if (save.lives >= LIVES_MAX) save.lifeAt = Date.now();
+    save.lives = Math.max(0, save.lives - 1);
+    store();
+  }
+  function refillLives() {
+    if (save.coins < LIFE_REFILL_PRICE) return false;
+    save.coins -= LIFE_REFILL_PRICE;
+    save.lives = LIVES_MAX; save.lifeAt = null;
+    store();
+    return true;
+  }
 
   // ======================= PUZZLES ========================================
   function makeLocks(n) {
@@ -136,8 +181,8 @@ const Game = (function () {
     const n = c.code.length;
     const v = view(c);
     $('level').textContent = 'LEVEL ' + save.level;
-    $('stars').textContent = '⭐ ' + save.stars;
     $('coins').textContent = '🪙 ' + save.coins;
+    $('lives').textContent = save.lives;
     document.body.style.setProperty('--bg', 'url("pictures/' + (((save.level - 1) % PICTURES) + 1) + '.jpg")');
 
     // hint button
@@ -189,7 +234,7 @@ const Game = (function () {
     }
     const unlocked = wasOpen && nowOpen.some(function (o, i) { return o && wasOpen[i] === false; });
     wasOpen = nowOpen;
-    if (unlocked && !c.done) { Sounds.play('hint'); toast('🔓 A box has been unlocked!'); }
+    if (unlocked && !c.done) { Sounds.play('hint'); buzz([30, 40, 30]); toast('🔓 A box has been unlocked!'); }
 
     // guess grid (a locked position keeps its colour hidden)
     const grid = $('grid');
@@ -234,6 +279,7 @@ const Game = (function () {
   // ======================= PLAYING ========================================
   function type(d) {
     if (busy || save.cur.done || entry.length >= save.cur.code.length) return;
+    buzz(12);
     entry.push(d);
     render();
   }
@@ -245,13 +291,13 @@ const Game = (function () {
   function submit() {
     const c = save.cur;
     if (busy || c.done) return;
-    if (entry.length !== c.code.length) { shake($('grid')); return; }
+    if (entry.length !== c.code.length) { shake($('grid')); buzz(60); return; }
     c.guesses.push(entry.slice());
     flipRow = c.guesses.length - 1;
     const m = marks(entry, c.code);
     entry = [];
     if (m.every(function (k) { return k === 'hit'; })) c.done = 'won';
-    else if (c.guesses.length >= MAX_TRIES) c.done = 'lost';
+    else if (c.guesses.length >= MAX_TRIES) { c.done = 'lost'; loseLife(); }
     store();
     busy = true;
     const keepLocks = wasOpen;          // let the flip finish before boxes unlock
@@ -262,7 +308,7 @@ const Game = (function () {
       flipRow = -1;
       if (c.done === 'won') win();
       else if (c.done === 'lost') lose();
-      else { Sounds.play(m.indexOf('hit') >= 0 ? 'correct' : 'wrong'); render(); }
+      else { Sounds.play(m.indexOf('hit') >= 0 ? 'correct' : 'wrong'); buzz(m.indexOf('hit') >= 0 ? 25 : [20, 60, 20]); render(); }
     }, c.code.length * 120 + 450);
   }
 
@@ -270,7 +316,7 @@ const Game = (function () {
   function hint() {
     const c = save.cur;
     if (c.done || busy) return;
-    if (save.hints <= 0) { openShop(); return; }
+    if (save.hints <= 0) { openHintShop(); return; }
     const v = view(c);
     const unknown = range(c.code.length).filter(function (i) { return !v.known[i]; });
     if (unknown.length <= 1) { toast('Only one digit left — you can do it!'); return; }
@@ -283,7 +329,7 @@ const Game = (function () {
     toast('💡 Box ' + (i + 1) + ' is ' + c.code[i]);
     render();
   }
-  function openShop() {
+  function openHintShop() {
     $('shop-have').textContent = 'You have ' + save.coins + ' 🪙';
     $('shop-buy').disabled = save.coins < HINT_PACK_PRICE;
     $('shop-short').textContent = save.coins < HINT_PACK_PRICE
@@ -310,9 +356,11 @@ const Game = (function () {
     if (!c.paid) {                     // count the stars only once, even after a reload
       c.paid = true;
       save.stars += s;
+      save.wins++;
       store();
     }
     Sounds.playWin(4000);
+    buzz([40, 60, 40, 60, 120]);
     confetti();
     render();
     showModal({
@@ -343,23 +391,30 @@ const Game = (function () {
     render();
     setTimeout(function () {
       hideModal();
-      if (adAfterLevel(save.level)) Ads.interstitial(next, musicHooks);   // the ad comes AFTER the coins
+      if (adAfterLevel(save.level) && !save.noAds) Ads.interstitial(next, musicHooks);   // the ad comes AFTER the coins
       else next();
     }, 1100);
   }
   function lose() {
     const c = save.cur;
     Sounds.play('wrong');
+    buzz([200, 80, 200]);
     render();
+    const any = save.lives > 0;
     showModal({
-      icon: '🔒', title: 'LOCKED IN', cls: 'lost',
+      icon: '💔', title: 'LOCKED IN', cls: 'lost',
       line: 'The code was ' + c.code.join(''),
-      extra: 'A new code is waiting. Try again!',
-      button: 'TRY AGAIN ↻', action: retry
+      extra: any ? 'You lost a life — ' + save.lives + ' ❤️ left. A new code is waiting!' : 'You are out of lives!',
+      button: any ? 'TRY AGAIN ↻' : 'GET LIVES ❤️', action: any ? retry : function () { App.livesModal(); },
+      button2: 'HOME', action2: function () { App.home(); }
     });
   }
   function next() { save.level++; newPuzzle(); hideModal(); render(); }
-  function retry() { newPuzzle(); hideModal(); render(); }
+  function retry() {
+    if (save.lives <= 0) { App.livesModal(); return; }
+    newPuzzle(); hideModal(); render();
+  }
+  function buzz(p) { if (window.App) App.buzz(p); }
 
   // music goes quiet while an ad plays
   let savedVolume = null;
@@ -419,11 +474,6 @@ const Game = (function () {
     Sounds.play('correct');
   }
 
-  function setMusicIcon() {
-    let on = true;
-    try { on = localStorage.getItem('ctc-music-on') !== '0'; } catch (e) { /* ignore */ }
-    $('mute-btn').textContent = on ? '🔊' : '🔇';
-  }
 
   // ======================= START ==========================================
   function init() {
@@ -442,10 +492,11 @@ const Game = (function () {
     $('shop-close').onclick = function () { $('shop').classList.add('hidden'); };
     $('help-btn').onclick = function () { $('help').classList.remove('hidden'); };
     $('help-close').onclick = function () { $('help').classList.add('hidden'); save.seenHelp = true; store(); };
-    $('mute-btn').onclick = function () { Sounds.toggleMusic(); setMusicIcon(); };
-    setMusicIcon();
+    $('home-btn').onclick = function () { App.home(); };
+    $('lives-chip').onclick = function () { App.livesModal(); };
     Ads.banner($('ad-banner'));
     document.addEventListener('keydown', function (e) {
+      if (!playing) return;
       if (/^[0-9]$/.test(e.key)) type(+e.key);
       else if (e.key === 'Backspace') back();
       else if (e.key === 'Enter') { if ($('modal').classList.contains('hidden')) submit(); }
@@ -454,16 +505,39 @@ const Game = (function () {
     document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
 
     const c = save.cur;
-    if (c.done === 'won' && c.collected) { next(); return; }   // closed during the level-break ad
+    if (c.done === 'won' && c.collected) { save.level++; newPuzzle(); }   // closed during the level-break ad
+    regenLives();
+    setInterval(regenLives, 15000);
+  }
+
+  // opened from the home page; false if there are no lives to play with
+  let playing = false;
+  function open() {
+    regenLives();
+    const c = save.cur;
+    if (save.lives <= 0 && (c.done === 'lost' || c.guesses.length === 0)) { App.livesModal(); return false; }
+    if (c.done === 'lost') newPuzzle();
+    playing = true;
+    wasOpen = null;
     render();
     if (!save.seenHelp) $('help').classList.remove('hidden');
-    else if (c.done === 'won') win();
-    else if (c.done === 'lost') lose();
+    else if (save.cur.done === 'won') win();
+    return true;
   }
+  function close() { playing = false; hideModal(); $('shop').classList.add('hidden'); }
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
   return {
+    data: function () { return save; }, persist: store, open: open, close: close,
+    render: function () { if (playing) render(); },
+    regenLives: regenLives, nextLifeIn: nextLifeIn, refillLives: refillLives, randomName: randomName,
+    addCoins: function (n) { save.coins += n; store(); },
+    buyHints: function () { if (save.coins < HINT_PACK_PRICE) return false; save.coins -= HINT_PACK_PRICE; save.hints += HINT_PACK_SIZE; store(); return true; },
+    afterRefill: function () { if (playing && save.cur.done === 'lost') retry(); },
+    toast: toast, musicHooks: musicHooks, LIVES_MAX: LIVES_MAX, LIFE_REFILL_PRICE: LIFE_REFILL_PRICE, AD_COINS: AD_COINS,
+    HINT_PACK_PRICE: HINT_PACK_PRICE, HINT_PACK_SIZE: HINT_PACK_SIZE,
     // testing helpers
     _state: function () { return save; },
     _render: function () { wasOpen = null; render(); },

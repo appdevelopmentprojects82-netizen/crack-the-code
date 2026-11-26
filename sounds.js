@@ -47,6 +47,7 @@ const Sounds = (function () {
 
   // ======================= state ==========================================
   let musicOn = true;           // what the host wants
+  let sfxOn = true;             // sound effects (Settings > Sound)
   let volume = MUSIC_VOLUME;    // slider value (0 - 1)
   let ducked = false;
   let duckTimer = null;
@@ -55,6 +56,7 @@ const Sounds = (function () {
     const savedVol = localStorage.getItem('ctc-music-volume');
     if (savedVol !== null && !isNaN(parseFloat(savedVol))) volume = parseFloat(savedVol);
     if (localStorage.getItem('ctc-music-on') === '0') musicOn = false;
+    if (localStorage.getItem('ctc-sfx-on') === '0') sfxOn = false;
   } catch (e) { /* storage not available - use defaults */ }
 
   // ======================= built-in synthesizer ===========================
@@ -443,6 +445,12 @@ const Sounds = (function () {
     updateButton();
   }
 
+  function setMusic(on) { if (!!on !== musicOn) toggleMusic(); }
+  function setSfx(on) {
+    sfxOn = !!on;
+    try { localStorage.setItem('ctc-sfx-on', sfxOn ? '1' : '0'); } catch (e) {}
+  }
+
   function setVolume(v) {
     volume = Math.max(0, Math.min(1, v));
     try { localStorage.setItem('ctc-music-volume', String(volume)); } catch (e) {}
@@ -452,6 +460,7 @@ const Sounds = (function () {
   // ======================= sound effects ==================================
   // Plays your mp3 if it exists, otherwise the built-in sound.
   function play(name) {
+    if (!sfxOn) return null;
     if (fileReady[name]) {
       try {
         const a = sfxFile[name].cloneNode();
@@ -524,6 +533,8 @@ const Sounds = (function () {
 
   return {
     play: play, playWin: playWin, startMusic: startMusic, toggleMusic: toggleMusic, setVolume: setVolume,
+    setMusic: setMusic, setSfx: setSfx,
+    musicOn: function () { return musicOn; }, sfxOn: function () { return sfxOn; },
     // for testing: the audio engine, so its output level can be measured
     // testing only: run every step of the tune once (call with music OFF = silent)
     _dryRun: function () { buildMusicGraph(); for (let i = 0; i < 128; i++) playStep(i, ctx.currentTime + 0.5, 0.5); return true; },
