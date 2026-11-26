@@ -9,7 +9,18 @@ A phone puzzle game. Every level hides a 4-digit code in a coded clue.
 * Harder clue types join at level 9 and at level 21. The same kind of clue does not come back within 10 levels.
 * Progress is saved on the phone.
 
-## Play on your phone (same Wi-Fi)
+## Play online
+**https://appdevelopmentprojects82-netizen.github.io/crack-the-code/**
+
+To update the website after changing files (and raising `VERSION` in `sw.js`):
+
+    git add -A
+    git commit -m "Update"
+    git push
+
+The site updates about a minute later.
+
+## Play on your phone without the internet link (same Wi-Fi)
 Double-click **Play on Phone.bat**, then open the address it shows in your phone's browser.
 
 ## Settings
