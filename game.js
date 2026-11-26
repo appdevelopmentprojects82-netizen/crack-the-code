@@ -1,8 +1,8 @@
 /* ==========================================================================
    CRACK THE CODE - MOBILE PUZZLE GAME
    --------------------------------------------------------------------------
-   Every level hides a 4-digit code inside a coded clue. Decode the clue,
-   type the code, and use the coloured feedback to fix your mistakes:
+   Every level hides a code inside a coded clue. Decode the clue, type the
+   code, and use the coloured boxes to fix your mistakes:
      green  = right digit in the right place
      yellow = the digit is in the code, but somewhere else
      grey   = the digit is not in the code
@@ -10,14 +10,36 @@
 'use strict';
 
 // ---------------- SETTINGS (easy to change) ----------------
-const MAX_TRIES        = 4;    // guesses per level
-const START_HINTS      = 3;    // hints a new player starts with
-const HINT_FOR_3_STARS = 1;    // hints earned for cracking a code on the first try
-const PICTURES         = 5;    // pictures/1.jpg ... 5.jpg, one per level, repeating
-const NO_REPEAT_LEVELS = 10;   // a clue type does not come back within this many levels
-const TIER_2_FROM      = 9;    // harder clue types join from this level
-const TIER_3_FROM      = 21;   // the hardest ones join from this level
-const SAVE_KEY         = 'ctcm-save-v1';
+const MAX_TRIES        = 4;     // guesses per level
+const WIN_COINS        = 40;    // coins for winning a level (an ad doubles them)
+const START_COINS      = 0;     // coins a new player starts with
+const HINT_PACK_PRICE  = 700;   // coins for a pack of hints
+const HINT_PACK_SIZE   = 3;     // hints in one pack
+const PICTURES         = 5;     // pictures/1.jpg ... 5.jpg, one per level, repeating
+const NO_REPEAT_LEVELS = 10;    // a clue type does not come back within this many levels
+const TIER_2_FROM      = 9;     // harder clue types join from this level
+const TIER_3_FROM      = 21;    // the hardest ones join from this level
+
+// Code length: 4 digits up to level 100, 5 digits from 101, 6 digits from 201.
+function digitsForLevel(level) { return level > 200 ? 6 : level > 100 ? 5 : 4; }
+
+// LOCKED BOXES (a clue box whose symbol is hidden at the start)
+//   🔒 padlock: opens once the digit in the box with the 🔑 has been found
+//   🕸️ spider web: breaks once WEB_BREAKS_AFTER other digits have been found
+const PADLOCK_FROM           = 11;   // from this level, half of the levels have a padlock
+const LOCK_EVERY_LEVEL_FROM  = 31;   // from here every level has a padlock or a web
+const BOTH_LOCKS_FROM        = 101;  // from here every level has both
+const WEB_BREAKS_AFTER       = 3;
+
+// LEVEL-BREAK ADS: shown after the coins for a level have been collected.
+// Levels 1-21: after every 3rd level; 22-100: every 2nd level; 101+: every level.
+function adAfterLevel(level) {
+  if (level <= 21) return level % 3 === 0;
+  if (level <= 100) return (level - 21) % 2 === 0;
+  return true;
+}
+
+const SAVE_KEY = 'ctcm-save-v1';
 // -----------------------------------------------------------
 
 const Game = (function () {
@@ -29,6 +51,7 @@ const Game = (function () {
   }
   function table(str) { const a = Array.from(str); return function (d) { return a[d]; }; }
   function words(list) { return function (d) { return list[d]; }; }
+  function range(n) { const a = []; for (let i = 0; i < n; i++) a.push(i); return a; }
 
   // ======================= CLUE TYPES =====================================
   // enc(d) turns ONE digit into a symbol. hint = the subtle nudge a player can
@@ -183,18 +206,20 @@ const Game = (function () {
   // ======================= SAVED PROGRESS =================================
   let save = load();
   function load() {
-    try {
-      const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
-      if (s && s.level >= 1) return s;
-    } catch (e) { /* ignore */ }
-    return { level: 1, hints: START_HINTS, stars: 0, recent: [], cur: null, seenHelp: false };
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { /* ignore */ }
+    if (!s || !(s.level >= 1)) s = { level: 1, stars: 0, recent: [], cur: null, seenHelp: false };
+    if (typeof s.coins !== 'number') { s.coins = START_COINS; s.hints = 0; }   // the old free hints are gone
+    if (typeof s.hints !== 'number') s.hints = 0;
+    if (s.cur) {                                // saves from the first version
+      s.cur.revealed = s.cur.revealed || [];
+      s.cur.locks = s.cur.locks || {};
+    }
+    return s;
   }
   function store() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* private mode */ } }
 
   // ======================= PUZZLES ========================================
-  function newCode() {
-    return shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 4);   // 4 different digits
-  }
   function chooseScheme(level) {
     const maxTier = level >= TIER_3_FROM ? 3 : level >= TIER_2_FROM ? 2 : 1;
     let pool = SCHEMES.filter(function (s) { return s.tier <= maxTier; });
@@ -203,68 +228,139 @@ const Game = (function () {
     const fresh = pool.filter(function (s) { return save.recent.indexOf(s.name) < 0; });
     return pick(fresh.length ? fresh : pool);
   }
+  function makeLocks(n) {
+    const L = save.level;
+    let kinds = [];
+    if (L >= BOTH_LOCKS_FROM) kinds = ['padlock', 'web'];
+    else if (L >= LOCK_EVERY_LEVEL_FROM) kinds = [pick(['padlock', 'web'])];
+    else if (L >= PADLOCK_FROM && Math.random() < 0.5) kinds = ['padlock'];
+    const free = shuffle(range(n));
+    const out = {};
+    kinds.forEach(function (k) {
+      if (k === 'padlock') { out.padlock = free.pop(); out.key = free.pop(); }
+      else out.web = free.pop();
+    });
+    return out;
+  }
   function newPuzzle(sameScheme) {
     const s = sameScheme ? scheme(save.cur.scheme) : chooseScheme(save.level);
-    const code = newCode();
+    const n = digitsForLevel(save.level);
+    const code = shuffle(range(10)).slice(0, n);           // all digits different
     const clue = makeClue(s, code);
     if (!sameScheme) {
       save.recent.push(s.name);
       while (save.recent.length > NO_REPEAT_LEVELS) save.recent.shift();
     }
     save.cur = { code: code, scheme: s.name, parts: clue.parts, note: clue.note || '', explain: clue.explain || s.explain,
-                 guesses: [], hintStep: 0, shown: -1, done: '' };
+                 guesses: [], revealed: [], locks: makeLocks(n), done: '', paid: false, collected: false };
     entry = [];
+    wasOpen = null;
     store();
   }
 
   // Wordle-style marks: hit / near / miss for each guessed digit
   function marks(guess, code) {
-    const out = ['miss', 'miss', 'miss', 'miss'];
+    const out = guess.map(function () { return 'miss'; });
     const left = {};
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < code.length; i++) {
       if (guess[i] === code[i]) out[i] = 'hit';
       else left[code[i]] = (left[code[i]] || 0) + 1;
     }
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < code.length; i++) {
       if (out[i] !== 'hit' && left[guess[i]] > 0) { out[i] = 'near'; left[guess[i]]--; }
     }
     return out;
+  }
+
+  // positions already known: green in a guess, or shown by a hint
+  function found(c) {
+    const f = {};
+    c.guesses.forEach(function (g) { marks(g, c.code).forEach(function (k, i) { if (k === 'hit') f[i] = true; }); });
+    c.revealed.forEach(function (i) { f[i] = true; });
+    return f;
+  }
+  function webNeed(c) { return Math.min(WEB_BREAKS_AFTER, c.code.length - 1); }
+  function isOpen(c, i, f) {
+    if (c.done) return true;
+    f = f || found(c);
+    if (c.locks.padlock === i) return !!f[c.locks.key];
+    if (c.locks.web === i) {
+      const n = Object.keys(f).filter(function (k) { return +k !== i; }).length;
+      return n >= webNeed(c);
+    }
+    return true;
   }
 
   // ======================= DRAWING ========================================
   let entry = [];
   let busy = false;
   let flipRow = -1;           // only the row just entered gets the flip animation
+  let wasOpen = null;         // which clue boxes were open last time (to animate unlocking)
 
   function render() {
     const c = save.cur;
+    const n = c.code.length;
+    const f = found(c);
     $('level').textContent = 'LEVEL ' + save.level;
     $('stars').textContent = '⭐ ' + save.stars;
-    $('hint-count').textContent = save.hints;
+    $('coins').textContent = '🪙 ' + save.coins;
     document.body.style.setProperty('--bg', 'url("pictures/' + (((save.level - 1) % PICTURES) + 1) + '.jpg")');
 
-    // clue tiles
+    // hint button
+    const hb = $('hint-btn');
+    hb.innerHTML = '';
+    if (save.hints > 0) {
+      hb.appendChild(document.createTextNode('💡 HINT '));
+      const b = document.createElement('b'); b.textContent = save.hints; hb.appendChild(b);
+    } else {
+      hb.appendChild(document.createTextNode('💡 +' + HINT_PACK_SIZE + ' HINTS '));
+      const b = document.createElement('b'); b.textContent = HINT_PACK_PRICE + ' 🪙'; hb.appendChild(b);
+    }
+    hb.disabled = !!c.done;
+
+    // clue boxes
     const box = $('clue');
     box.innerHTML = '';
     const longest = Math.max.apply(null, c.parts.map(function (p) { return Array.from(p).length; }));
-    box.className = longest > 6 ? 'long' : longest > 3 ? 'mid' : '';
-    c.parts.forEach(function (p) {
+    const wide = longest > 3;
+    box.className = (longest > 6 ? 'long' : wide ? 'mid' : '') + (n > 4 ? ' many' : '');
+    box.style.gridTemplateColumns = 'repeat(' + (wide ? Math.ceil(n / 2) : n) + ', 1fr)';
+    const nowOpen = [];
+    c.parts.forEach(function (p, i) {
       const t = document.createElement('div');
       t.className = 'clue-part';
-      t.textContent = p;
+      const open = isOpen(c, i, f);
+      nowOpen.push(open);
+      const sym = document.createElement('span');
+      sym.className = 'sym';
+      if (!open && c.locks.padlock === i) {
+        t.classList.add('locked', 'padlock');
+        sym.textContent = '🔒';
+        const cap = document.createElement('small'); cap.textContent = 'FIND THE 🔑'; t.appendChild(cap);
+      } else if (!open && c.locks.web === i) {
+        t.classList.add('locked', 'web');
+        sym.textContent = '🕸️';
+        const have = Object.keys(f).filter(function (k) { return +k !== i; }).length;
+        const cap = document.createElement('small'); cap.textContent = 'FIND ' + have + '/' + webNeed(c); t.appendChild(cap);
+      } else {
+        sym.textContent = p;
+        if (wasOpen && wasOpen[i] === false) t.classList.add('unlocking');
+      }
+      t.insertBefore(sym, t.firstChild);
+      if (c.locks.key === i && !c.done && !f[i]) {
+        const k = document.createElement('i'); k.className = 'badge key'; k.textContent = '🔑'; t.appendChild(k);
+      }
+      if (c.revealed.indexOf(i) >= 0) {
+        t.classList.add('told');
+        const d = document.createElement('i'); d.className = 'badge digit'; d.textContent = c.code[i]; t.appendChild(d);
+      } else if (f[i]) t.classList.add('found');
       box.appendChild(t);
     });
+    const unlocked = wasOpen && nowOpen.some(function (o, i) { return o && wasOpen[i] === false; });
+    wasOpen = nowOpen;
+    if (unlocked && !c.done) { Sounds.play('hint'); toast('🔓 A box has been unlocked!'); }
     $('clue-note').textContent = c.note;
     $('clue-note').classList.toggle('hidden', !c.note);
-
-    // hint line
-    const ht = $('hint-text');
-    const lines = [];
-    if (c.hintStep >= 1) lines.push('💡 ' + scheme(c.scheme).hint);
-    if (c.hintStep >= 2 && c.shown >= 0) lines.push('🔑 Digit ' + (c.shown + 1) + ' is ' + c.code[c.shown]);
-    ht.textContent = lines.join('\n');
-    ht.classList.toggle('hidden', !lines.length);
-    $('hint-btn').disabled = c.hintStep >= 2 || !!c.done;
 
     // guess grid
     const grid = $('grid');
@@ -274,7 +370,7 @@ const Game = (function () {
       row.className = 'row' + (r === flipRow ? ' reveal' : '');
       const g = c.guesses[r];
       const m = g ? marks(g, c.code) : null;
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < n; i++) {
         const cell = document.createElement('div');
         cell.className = 'cell';
         if (g) { cell.textContent = g[i]; cell.classList.add(m[i]); cell.style.animationDelay = (i * 0.12) + 's'; }
@@ -286,36 +382,26 @@ const Game = (function () {
       }
       grid.appendChild(row);
     }
-    $('tries').textContent = (MAX_TRIES - c.guesses.length) + ' ' + (MAX_TRIES - c.guesses.length === 1 ? 'TRY' : 'TRIES') + ' LEFT';
-
-    // keypad colours: best thing known about each digit
-    const best = {};
-    const rank = { miss: 1, near: 2, hit: 3 };
-    c.guesses.forEach(function (g) {
-      marks(g, c.code).forEach(function (k, i) { if (!best[g[i]] || rank[k] > rank[best[g[i]]]) best[g[i]] = k; });
-    });
-    document.querySelectorAll('#keypad [data-d]').forEach(function (b) {
-      b.classList.remove('hit', 'near', 'miss');
-      const k = best[b.dataset.d];
-      if (k) b.classList.add(k);
-    });
-    $('enter').disabled = entry.length !== 4;
+    const left = MAX_TRIES - c.guesses.length;
+    $('tries').textContent = n + '-DIGIT CODE · ' + left + ' ' + (left === 1 ? 'TRY' : 'TRIES') + ' LEFT';
+    $('enter').disabled = entry.length !== n;
     fitGrid();
   }
 
-  // make the guess boxes as big as the free space allows (small phones, long clues)
+  // make the guess boxes as big as the free space allows (small phones, long codes)
   function fitGrid() {
+    const n = save.cur ? save.cur.code.length : 4;
     const board = $('board');
     const free = board.clientHeight - $('tries').offsetHeight - 6 - (MAX_TRIES - 1) * 7;
     const byHeight = Math.floor(free / MAX_TRIES);
-    const byWidth = Math.floor((board.clientWidth - 3 * 7) / 4);
-    $('grid').style.setProperty('--cell', Math.max(26, Math.min(58, byHeight, byWidth)) + 'px');
+    const byWidth = Math.floor((board.clientWidth - (n - 1) * 7) / n);
+    $('grid').style.setProperty('--cell', Math.max(24, Math.min(58, byHeight, byWidth)) + 'px');
   }
   window.addEventListener('resize', fitGrid);
 
   // ======================= PLAYING ========================================
   function type(d) {
-    if (busy || save.cur.done || entry.length >= 4) return;
+    if (busy || save.cur.done || entry.length >= save.cur.code.length) return;
     entry.push(d);
     render();
   }
@@ -327,7 +413,7 @@ const Game = (function () {
   function submit() {
     const c = save.cur;
     if (busy || c.done) return;
-    if (entry.length !== 4) { shake($('grid')); return; }
+    if (entry.length !== c.code.length) { shake($('grid')); return; }
     c.guesses.push(entry.slice());
     flipRow = c.guesses.length - 1;
     const m = marks(entry, c.code);
@@ -335,60 +421,104 @@ const Game = (function () {
     if (m.every(function (k) { return k === 'hit'; })) c.done = 'won';
     else if (c.guesses.length >= MAX_TRIES) c.done = 'lost';
     store();
-    render();
     busy = true;
+    const keepLocks = wasOpen;          // let the flip finish before boxes unlock
+    render();
+    wasOpen = keepLocks;
     setTimeout(function () {
       busy = false;
       flipRow = -1;
       if (c.done === 'won') win();
       else if (c.done === 'lost') lose();
-      else Sounds.play(m.indexOf('hit') >= 0 ? 'hint' : 'wrong');
-    }, 4 * 120 + 450);
+      else { Sounds.play(m.indexOf('hit') >= 0 ? 'correct' : 'wrong'); render(); }
+    }, c.code.length * 120 + 450);
   }
 
+  // ---- hints: each one shows one correct digit in its place ----
   function hint() {
     const c = save.cur;
-    if (c.done || c.hintStep >= 2) return;
-    if (save.hints <= 0) { toast('No hints left — crack a code on the first try to earn one'); shake($('hint-btn')); return; }
+    if (c.done || busy) return;
+    if (save.hints <= 0) { openShop(); return; }
+    const f = found(c);
+    const unknown = range(c.code.length).filter(function (i) { return !f[i]; });
+    if (unknown.length <= 1) { toast('Only one digit left — you can do it!'); return; }
     save.hints--;
-    c.hintStep++;
-    if (c.hintStep === 2) {          // second hint: show one digit nobody has found yet
-      const known = {};
-      c.guesses.forEach(function (g) { marks(g, c.code).forEach(function (k, i) { if (k === 'hit') known[i] = true; }); });
-      const open = [0, 1, 2, 3].filter(function (i) { return !known[i]; });
-      c.shown = pick(open.length ? open : [0, 1, 2, 3]);
-    }
+    const i = pick(unknown);
+    c.revealed.push(i);
     store();
     Sounds.play('hint');
+    toast('💡 Box ' + (i + 1) + ' is ' + c.code[i]);
+    render();
+  }
+  function openShop() {
+    $('shop-have').textContent = 'You have ' + save.coins + ' 🪙';
+    $('shop-buy').disabled = save.coins < HINT_PACK_PRICE;
+    $('shop-short').textContent = save.coins < HINT_PACK_PRICE
+      ? 'You need ' + (HINT_PACK_PRICE - save.coins) + ' more coins. Win levels to earn ' + WIN_COINS + ' 🪙 each (×2 with an ad).' : '';
+    $('shop').classList.remove('hidden');
+  }
+  function buyHints() {
+    if (save.coins < HINT_PACK_PRICE) return;
+    save.coins -= HINT_PACK_PRICE;
+    save.hints += HINT_PACK_SIZE;
+    store();
+    $('shop').classList.add('hidden');
+    Sounds.play('hint');
+    toast('+' + HINT_PACK_SIZE + ' hints!');
     render();
   }
 
   function stars() { const n = save.cur.guesses.length; return n <= 1 ? 3 : n === 2 ? 2 : 1; }
 
+  // ======================= WIN / LOSE =====================================
   function win() {
     const c = save.cur;
     const s = stars();
-    if (!c.paid) {                     // only pay out once, even after a reload
+    if (!c.paid) {                     // count the stars only once, even after a reload
       c.paid = true;
       save.stars += s;
-      if (s === 3 && c.hintStep === 0) save.hints += HINT_FOR_3_STARS;
       store();
     }
     Sounds.playWin(4000);
     confetti();
+    render();
     showModal({
       icon: '🔓', title: 'ESCAPED!', cls: 'won',
       stars: s,
       line: 'The code was ' + c.code.join(''),
-      extra: s === 3 && c.hintStep === 0 ? '+' + HINT_FOR_3_STARS + ' hint for a first-try crack!' : '',
       explain: c.explain,
-      button: 'NEXT LEVEL ▶', action: next
+      coins: true,
+      button: '▶ WATCH AD · GET ' + (WIN_COINS * 2) + ' 🪙', action: watchForDouble,
+      button2: 'COLLECT ' + WIN_COINS + ' 🪙', action2: function () { collect(1); }
     });
+  }
+  function watchForDouble() {
+    Ads.reward(function (watched) {
+      if (watched) collect(2);
+      else toast('No ad available right now — collect your ' + WIN_COINS + ' 🪙 or try again');
+    }, musicHooks);
+  }
+  function collect(times) {
+    const c = save.cur;
+    if (c.collected) return;
+    c.collected = true;
+    const amount = WIN_COINS * times;
+    save.coins += amount;
+    store();
+    $('m-button').disabled = true;
+    $('m-button2').disabled = true;
+    coinBurst(amount);
     render();
+    setTimeout(function () {
+      hideModal();
+      if (adAfterLevel(save.level)) Ads.interstitial(next, musicHooks);   // the ad comes AFTER the coins
+      else next();
+    }, 1100);
   }
   function lose() {
     const c = save.cur;
     Sounds.play('wrong');
+    render();
     showModal({
       icon: '🔒', title: 'LOCKED IN', cls: 'lost',
       line: 'The code was ' + c.code.join(''),
@@ -399,6 +529,16 @@ const Game = (function () {
   }
   function next() { save.level++; newPuzzle(false); hideModal(); render(); }
   function retry() { newPuzzle(true); hideModal(); render(); }
+
+  // music goes quiet while an ad plays
+  let savedVolume = null;
+  const musicHooks = {
+    before: function () {
+      try { savedVolume = parseFloat(localStorage.getItem('ctc-music-volume') || '0.18'); } catch (e) { savedVolume = 0.18; }
+      Sounds.setVolume(0);
+    },
+    after: function () { if (savedVolume !== null) Sounds.setVolume(savedVolume); savedVolume = null; }
+  };
 
   // ======================= LITTLE HELPERS =================================
   function shake(el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
@@ -419,9 +559,13 @@ const Game = (function () {
     $('m-line').textContent = o.line;
     $('m-explain').textContent = o.explain;
     $('m-extra').textContent = o.extra || '';
+    $('m-coins').classList.toggle('hidden', !o.coins);
+    $('m-coins').textContent = '+' + WIN_COINS + ' 🪙';
     const b = $('m-button');
-    b.textContent = o.button;
-    b.onclick = o.action;
+    b.textContent = o.button; b.onclick = o.action; b.disabled = false;
+    const b2 = $('m-button2');
+    b2.classList.toggle('hidden', !o.button2);
+    b2.textContent = o.button2 || ''; b2.onclick = o.action2 || null; b2.disabled = false;
   }
   function hideModal() { $('modal').className = 'modal hidden'; $('confetti').innerHTML = ''; }
   function confetti() {
@@ -436,6 +580,13 @@ const Game = (function () {
       p.style.animationDuration = (1.8 + Math.random() * 1.6) + 's';
       box.appendChild(p);
     }
+  }
+  function coinBurst(amount) {
+    $('m-coins').textContent = '+' + amount + ' 🪙';
+    $('m-coins').classList.remove('pop'); void $('m-coins').offsetWidth; $('m-coins').classList.add('pop');
+    const chip = $('coins');
+    chip.classList.remove('pop'); void chip.offsetWidth; chip.classList.add('pop');
+    Sounds.play('correct');
   }
 
   function setMusicIcon() {
@@ -457,22 +608,27 @@ const Game = (function () {
       pad.appendChild(b);
     });
     $('hint-btn').onclick = hint;
+    $('shop-buy').onclick = buyHints;
+    $('shop-close').onclick = function () { $('shop').classList.add('hidden'); };
     $('help-btn').onclick = function () { $('help').classList.remove('hidden'); };
     $('help-close').onclick = function () { $('help').classList.add('hidden'); save.seenHelp = true; store(); };
     $('mute-btn').onclick = function () { Sounds.toggleMusic(); setMusicIcon(); };
     setMusicIcon();
+    Ads.banner($('ad-banner'));
     document.addEventListener('keydown', function (e) {
       if (/^[0-9]$/.test(e.key)) type(+e.key);
       else if (e.key === 'Backspace') back();
-      else if (e.key === 'Enter') { if (!$('modal').classList.contains('hidden')) $('m-button').click(); else submit(); }
+      else if (e.key === 'Enter') { if ($('modal').classList.contains('hidden')) submit(); }
     });
     // stop double-tap zoom on iPhone while tapping keys fast
     document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
 
+    const c = save.cur;
+    if (c.done === 'won' && c.collected) { next(); return; }   // closed during the level-break ad
     render();
     if (!save.seenHelp) $('help').classList.remove('hidden');
-    else if (save.cur.done === 'won') win();
-    else if (save.cur.done === 'lost') lose();
+    else if (c.done === 'won') win();
+    else if (c.done === 'lost') lose();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
@@ -480,6 +636,8 @@ const Game = (function () {
   return {
     // testing helpers
     _state: function () { return save; },
+    _render: function () { wasOpen = null; render(); },
+    _new: function () { newPuzzle(false); render(); },
     _clues: function (code) { const o = {}; SCHEMES.forEach(function (s) { o[s.name] = makeClue(s, code).parts.join(' | '); }); return o; },
     _reset: function () { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ } location.reload(); }
   };

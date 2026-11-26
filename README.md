@@ -2,12 +2,20 @@
 
 A phone puzzle game. Every level hides a 4-digit code in a coded clue.
 
-* Each clue tile hides one digit (keyboard symbols, Morse, planets, Maya numbers, Braille, …).
+* Each clue box hides one digit (keyboard symbols, Morse, planets, Maya numbers, Braille, …).
 * The player types a code. Green = right digit and right place, yellow = in the code but in the wrong place, grey = not in the code.
-* 4 tries per level. A first-try crack gives ★★★ and a free hint.
-* A hint explains the trick; a second hint shows one digit.
+* 4 tries per level. Codes have 4 digits, 5 digits from level 101 and 6 digits from level 201.
+* Each win pays 40 coins; watching an ad doubles them.
+* A hint shows one correct digit in its place. Hints come in packs of 3 for 700 coins.
+* Locked boxes: 🔒 a padlocked box opens once the digit in the box with the 🔑 has been found (from level 11).
+  🕸️ A spider web breaks once 3 other digits have been found (from level 31; both kinds from level 101).
+* Level-break ads come after the coins have been collected: after every 3rd level up to level 21, every 2nd level up to level 100, and every level after that.
 * Harder clue types join at level 9 and at level 21. The same kind of clue does not come back within 10 levels.
-* Progress is saved on the phone.
+* Progress, coins and hints are saved on the phone.
+
+## Ads
+Until `ads.js` has your AdSense details, the game shows placeholder ads in the right places.
+Instructions are at the top of `ads.js`.
 
 ## Play online
 **https://appdevelopmentprojects82-netizen.github.io/crack-the-code/**
