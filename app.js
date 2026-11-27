@@ -88,7 +88,7 @@ const App = (function () {
     else show('home', true);
   }
   window.addEventListener('popstate', function () { closeModals(); show('home', true); });
-  function closeModals() { ['lives-modal', 'profile', 'settings', 'notice'].forEach(function (id) { $(id).classList.add('hidden'); }); }
+  function closeModals() { ['lives-modal', 'profile', 'settings', 'notice', 'daily'].forEach(function (id) { $(id).classList.add('hidden'); }); }
 
   function play() {
     show('game');
@@ -108,24 +108,28 @@ const App = (function () {
   function update() {
     const s = S();
     Game.regenLives();
-    ['home-coins', 'shop-coins'].forEach(function (id) { $(id).textContent = '🪙 ' + s.coins.toLocaleString(); });
+    ['home-coins', 'shop-coins'].forEach(function (id) { coinText($(id), '🪙 ' + s.coins.toLocaleString()); });
     $('home-lives').firstElementChild.textContent = s.lives;
+    document.querySelectorAll('.heart').forEach(function (h) { h.classList.toggle('full', s.lives >= Game.LIVES_MAX); });
+    $('daily-btn').classList.toggle('ready', Game.dailyReady());
+    if (!$('daily').classList.contains('hidden')) fillDaily();
     $('play-level').textContent = s.level;
     avatarHTML($('pfp-btn'), s.avatar);
     const wait = Game.nextLifeIn();
     if (s.lives <= 0) $('play-note').textContent = wait ? '❤️ Next life in ' + clock(wait) : 'Out of lives';
     else if (s.level === 101) $('play-note').textContent = 'NEW: 5-DIGIT CODES!';
     else if (s.level === 201) $('play-note').textContent = 'NEW: 6-DIGIT CODES!';
-    else $('play-note').textContent = '⭐ ' + s.stars + ' stars collected';
+    else $('play-note').textContent = '⭐ ' + s.stars;
     Game.render();
     if (!$('lives-modal').classList.contains('hidden')) fillLives();
     if (screen === 'shop') refreshShop();
   }
   function clock(ms) {
     const t = Math.ceil(ms / 1000);
-    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+    const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, sec = t % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
   }
-  setInterval(function () { if (screen === 'home' || !$('lives-modal').classList.contains('hidden')) update(); }, 1000);
+  setInterval(function () { if (screen === 'home' || !$('lives-modal').classList.contains('hidden') || !$('daily').classList.contains('hidden')) update(); }, 1000);
 
   function watchAdForCoins() {
     Ads.reward(function (watched) {
@@ -149,17 +153,18 @@ const App = (function () {
     const full = s.lives >= Game.LIVES_MAX;
     const wait = Game.nextLifeIn();
     $('lm-count').textContent = s.lives;
-    $('lm-title').textContent = s.lives <= 0 ? 'OUT OF LIVES' : 'LIVES';
-    $('lm-text').textContent = full ? 'Your lives are full. Losing a level costs one life.'
-      : 'Refill all ' + Game.LIVES_MAX + ' lives now, or wait for a free one.';
+    $('lm-title').textContent = s.lives <= 0 ? 'OUT OF LIVES' : full ? 'LIVES FULL' : 'LIVES';
+    $('lm-text').textContent = '';
     $('lm-timer').textContent = full ? '' : (wait ? '❤️ +1 in ' + clock(wait) : '');
-    $('lm-refill').textContent = 'REFILL ❤️ · ' + Game.LIFE_REFILL_PRICE.toLocaleString() + ' 🪙';
+    coinText($('lm-refill'), 'REFILL ❤️ · ' + Game.LIFE_REFILL_PRICE.toLocaleString() + ' 🪙');
     $('lm-refill').disabled = full || s.coins < Game.LIFE_REFILL_PRICE;
     $('lm-refill').classList.toggle('hidden', full);
     const short = $('lm-short');
     short.innerHTML = '';
     if (!full && s.coins < Game.LIFE_REFILL_PRICE) {
-      short.appendChild(document.createTextNode('You need ' + (Game.LIFE_REFILL_PRICE - s.coins).toLocaleString() + ' more coins. '));
+      const need = document.createElement('span');
+      coinText(need, 'You need ' + (Game.LIFE_REFILL_PRICE - s.coins).toLocaleString() + ' more 🪙  ');
+      short.appendChild(need);
       const go = document.createElement('button');
       go.className = 'inline-link'; go.textContent = 'Get coins →';
       go.onclick = function () { $('lives-modal').classList.add('hidden'); Game.close(); show('shop'); };
@@ -181,9 +186,48 @@ const App = (function () {
     const s = S();
     if (document.hidden && s.settings.notify && window.Notification && Notification.permission === 'granted') {
       const opts = { body: 'Your lives are full ❤️ Come back and crack the next code!', icon: 'icons/icon-192.png', tag: 'lives' };
-      if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.ready.then(function (r) { r.showNotification('Crack The Code', opts); });
-      else { try { new Notification('Crack The Code', opts); } catch (e) { /* not allowed here */ } }
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.ready.then(function (r) { r.showNotification('Code Quest', opts); });
+      else { try { new Notification('Code Quest', opts); } catch (e) { /* not allowed here */ } }
     }
+  }
+
+  // ======================= DAILY TARGETS ==================================
+  function openDaily() { fillDaily(); $('daily').classList.remove('hidden'); }
+  function fillDaily() {
+    const d = Game.daily();
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    $('dl-reset').textContent = '⏳ ' + clock(midnight - now);
+    const list = $('dl-list');
+    const key = d.day + '|' + d.wins + '|' + d.claimed.join(',');
+    if (list.dataset.key === key) return;              // only redraw when something changed
+    list.dataset.key = key;
+    list.innerHTML = '';
+    Game.DAILY_TARGETS.forEach(function (t, i) {
+      const done = d.claimed[i], ready = !done && d.wins >= t.levels;
+      const r = document.createElement('div');
+      r.className = 'dl-row' + (done ? ' done' : ready ? ' ready' : '');
+      const info = document.createElement('div'); info.className = 'dl-info';
+      const b = document.createElement('b'); b.textContent = 'Complete ' + t.levels + ' levels'; info.appendChild(b);
+      const bar = document.createElement('div'); bar.className = 'dl-bar';
+      const fill = document.createElement('i'); fill.style.width = Math.min(100, d.wins / t.levels * 100) + '%'; bar.appendChild(fill);
+      const n = document.createElement('span'); n.textContent = Math.min(d.wins, t.levels) + '/' + t.levels; bar.appendChild(n);
+      info.appendChild(bar);
+      const btn = document.createElement('button'); btn.className = 'dl-claim';
+      if (done) { btn.textContent = '✓'; btn.disabled = true; }
+      else coinText(btn, '+' + t.coins + ' 🪙');
+      if (!ready) btn.disabled = true;
+      btn.onclick = function () {
+        const got = Game.claimDaily(i);
+        if (!got) return;
+        Sounds.play('correct'); buzz([30, 40, 30]);
+        Game.toast('+' + got + ' 🪙');
+        const c = $('home-coins'); c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
+        update();
+      };
+      r.appendChild(info); r.appendChild(btn);
+      list.appendChild(r);
+    });
   }
 
   // ======================= PROFILE ========================================
@@ -233,6 +277,10 @@ const App = (function () {
     setToggle('set-music', Sounds.musicOn());
     setToggle('set-vibe', s.settings.vibrate);
     setToggle('set-notify', s.settings.notify && window.Notification && Notification.permission === 'granted');
+    const a = Account.status();
+    $('acct-kind').textContent = (a.icon ? a.icon + ' ' : '') + a.kind;
+    $('acct-name').textContent = a.name;
+    $('acct-name').classList.toggle('linked', a.linked);
   }
   function setToggle(id, on) { $(id).classList.toggle('on', !!on); $(id).setAttribute('aria-pressed', on ? 'true' : 'false'); }
   function toggleNotify() {
@@ -253,7 +301,8 @@ const App = (function () {
   function restore() {
     Pay.restore(function (items, msg) {
       const s = S();
-      notice('🔄', 'RESTORE PURCHASES', s.noAds ? 'Remove ads is active on this device. ' + msg : msg);
+      if (items.indexOf('remove_ads') >= 0 && !s.noAds) { s.noAds = true; Game.persist(); }
+      notice('🔄', 'RESTORE PURCHASES', s.noAds ? 'Remove ads is active. ' + msg : msg);
     });
   }
   function openHelp() {
@@ -261,7 +310,7 @@ const App = (function () {
     box.innerHTML = '';
     if (SUPPORT_EMAIL) {
       const a = document.createElement('a');
-      a.className = 'wide-btn'; a.href = 'mailto:' + SUPPORT_EMAIL + '?subject=' + encodeURIComponent('Crack The Code help');
+      a.className = 'wide-btn'; a.href = 'mailto:' + SUPPORT_EMAIL + '?subject=' + encodeURIComponent('Code Quest help');
       a.textContent = '✉️ EMAIL SUPPORT';
       box.appendChild(a);
     }
@@ -278,35 +327,37 @@ const App = (function () {
     function row(icon, title, sub, btnText, cls, onBuy, tag) {
       const r = document.createElement('div');
       r.className = 'shop-row ' + (cls || '');
-      const i = document.createElement('div'); i.className = 'shop-icon'; i.textContent = icon;
+      const i = document.createElement('div'); i.className = 'shop-icon';
+      if (typeof icon === 'number') {                 // a pile of gold coins
+        i.classList.add('pile', 'p' + icon);
+        for (let k = 0; k < icon; k++) { const c = document.createElement('i'); c.className = 'coin'; i.appendChild(c); }
+      } else i.textContent = icon;
       const t = document.createElement('div'); t.className = 'shop-name';
       const b1 = document.createElement('b'); b1.textContent = title; t.appendChild(b1);
       if (sub) { const sm = document.createElement('small'); sm.textContent = sub; t.appendChild(sm); }
-      const b = document.createElement('button'); b.className = 'price-btn'; b.textContent = btnText; b.onclick = onBuy;
+      const b = document.createElement('button'); b.className = 'price-btn'; coinText(b, btnText); b.onclick = onBuy;
       if (tag) { const tg = document.createElement('span'); tg.className = 'tag'; tg.textContent = tag; r.appendChild(tg); }
       r.appendChild(i); r.appendChild(t); r.appendChild(b);
       list.appendChild(r);
       return b;
     }
-    row('🎬', '+' + Game.AD_COINS + ' coins', 'Watch a short ad', 'FREE', 'free', watchAdForCoins);
+    row('🎬', '+' + Game.AD_COINS + ' coins', '', '▶ FREE', 'free', watchAdForCoins);
     PRODUCTS.forEach(function (p) {
       if (p.coins) {
-        row(p.coins >= 10000 ? '💰' : p.coins >= 5000 ? '🪙🪙' : '🪙', p.coins.toLocaleString() + ' coins', '', Prices.local(p.usd), '',
+        row(p.coins >= 10000 ? 3 : p.coins >= 5000 ? 2 : 1, p.coins.toLocaleString() + ' coins', '', Prices.local(p.usd), '',
             function () { buy(p); }, p.tag);
       } else if (p.noAds) {
-        const b = row('🚫', 'Remove ads', 'No more ads between levels · one-time payment',
+        const b = row('🚫', 'Remove ads', '',
                       s.noAds ? 'OWNED ✓' : Prices.local(p.usd), 'noads', function () { if (!S().noAds) buy(p); });
         b.disabled = s.noAds;
       }
     });
-    const hb = row('💡', Game.HINT_PACK_SIZE + ' hints', 'Each shows one digit in its place', Game.HINT_PACK_PRICE + ' 🪙', 'coin-buy', function () {
+    const hb = row('💡', Game.HINT_PACK_SIZE + ' hints', '', Game.HINT_PACK_PRICE + ' 🪙', 'coin-buy', function () {
       if (Game.buyHints()) { Sounds.play('hint'); Game.toast('+' + Game.HINT_PACK_SIZE + ' hints!'); update(); }
     });
     hb.dataset.cost = Game.HINT_PACK_PRICE;
-    const lb = row('❤️', 'Refill lives', 'Back to ' + Game.LIVES_MAX + ' lives', Game.LIFE_REFILL_PRICE.toLocaleString() + ' 🪙', 'coin-buy', refill);
+    const lb = row('❤️', 'Refill lives', '', Game.LIFE_REFILL_PRICE.toLocaleString() + ' 🪙', 'coin-buy', refill);
     lb.dataset.cost = Game.LIFE_REFILL_PRICE; lb.dataset.lives = 1;
-    $('shop-foot').textContent = Prices.currency() === 'USD' ? 'Prices in US dollars.'
-      : 'Prices in ' + Prices.currency() + ', converted from US dollars.';
     refreshShop();
   }
   function refreshShop() {
@@ -319,14 +370,14 @@ const App = (function () {
     Pay.buy(p, function (ok, msg) {
       if (!ok) { notice('🛒', 'COMING SOON', msg); return; }
       const s = S();
-      if (p.coins) { Game.addCoins(p.coins); notice('🪙', '+' + p.coins.toLocaleString() + ' COINS', msg); }
-      if (p.noAds) { s.noAds = true; Game.persist(); notice('🚫', 'ADS REMOVED', 'No more ads between levels. ' + msg); }
+      if (p.coins) { Game.addCoins(p.coins); notice('🪙', '+' + p.coins.toLocaleString() + ' 🪙', msg); }
+      if (p.noAds) { s.noAds = true; Game.persist(); notice('🚫', 'ADS REMOVED', msg); }
       Sounds.play('correct');
       buildShop(); update();
     });
   }
   function notice(icon, title, text) {
-    $('nt-icon').textContent = icon; $('nt-title').textContent = title; $('nt-text').textContent = text;
+    coinText($('nt-icon'), icon); coinText($('nt-title'), title); $('nt-text').textContent = text;
     $('notice').classList.remove('hidden');
   }
 
@@ -351,7 +402,7 @@ const App = (function () {
     });
     body.appendChild(stats);
     const soon = document.createElement('div'); soon.className = 'rank-soon';
-    soon.innerHTML = '<div class="m-big">🌍</div><b>WORLD RANKINGS COMING SOON</b><span>Keep escaping — your level and stars will count when the global leaderboard opens.</span>';
+    soon.innerHTML = '<div class="m-big">🌍</div><b>WORLD RANKINGS COMING SOON</b>';
     body.appendChild(soon);
   }
 
@@ -375,6 +426,8 @@ const App = (function () {
     $('home-ad').onclick = watchAdForCoins;
     $('home-lives').onclick = livesModal;
     $('pfp-btn').onclick = openProfile;
+    $('daily-btn').onclick = openDaily;
+    $('dl-close').onclick = function () { $('daily').classList.add('hidden'); };
     $('settings-btn').onclick = openSettings;
     $('lm-refill').onclick = refill;
     $('lm-close').onclick = function () { $('lives-modal').classList.add('hidden'); };
@@ -390,6 +443,7 @@ const App = (function () {
     $('set-close').onclick = function () { $('settings').classList.add('hidden'); };
     $('nt-ok').onclick = function () { $('notice').classList.add('hidden'); };
     Prices.refresh(function () { if (screen === 'shop') buildShop(); });
+    Account.signIn(function () { if (!$('settings').classList.contains('hidden')) fillSettings(); });
     // the free-life clock keeps running while the phone is away
     document.addEventListener('visibilitychange', function () { if (!document.hidden) update(); });
     splash();

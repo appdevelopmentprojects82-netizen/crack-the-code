@@ -11,8 +11,10 @@
      - on the live site, "buy" explains that purchases open soon
      - on your own computer (localhost) a TEST purchase is given for free,
        so you can try the shop
-   To take real money the game needs a payment provider (for a website:
-   e.g. Stripe or Paddle; inside an app store: Google Play / Apple billing).
+   To take real money the game needs a payment provider. In the store
+   version (see account.js) that is Apple / Google billing, e.g. with the
+   plugin "cordova-plugin-purchase"; purchases then belong to the player's
+   Apple ID or Google account, which is what "Restore purchases" uses.
    ========================================================================== */
 const PRODUCTS = [
   { id: 'coins_1000',  coins: 1000,  usd: 1.99 },
@@ -141,9 +143,18 @@ const Pay = (function () {
     if (testing) { done(true, 'TEST purchase (only on your computer — no money taken)'); return; }
     done(false, 'Purchases open soon! Keep playing to earn coins.');
   }
+  // asks the App Store / Google Play for everything bought with the signed-in account
   function restore(done) {
-    if (PAYMENTS_LIVE) { done([], 'Payments are not connected.'); return; }
-    done([], 'Purchases are not open yet, so there is nothing to restore.');
+    const st = window.CdvPurchase && CdvPurchase.store;
+    const acct = Account.status();
+    if (PAYMENTS_LIVE && st && Account.isNative()) {
+      st.restorePurchases().then(function () {
+        const owned = PRODUCTS.filter(function (p) { return p.noAds && st.owned(p.id); }).map(function (p) { return p.id; });
+        done(owned, owned.length ? 'Restored from your ' + acct.kind + '.' : 'No purchases found on your ' + acct.kind + '.');
+      }).catch(function () { done([], 'Could not reach the store. Try again later.'); });
+      return;
+    }
+    done([], acct.linked ? 'No purchases found on your ' + acct.kind + '.' : 'Nothing to restore yet.');
   }
   return { buy: buy, restore: restore, testing: testing };
 })();

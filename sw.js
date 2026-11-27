@@ -1,10 +1,10 @@
 // Keeps the game working offline once it has been opened.
 // Change VERSION whenever you change a file, so phones fetch the new one.
-const VERSION = 'ctcm-7';
+const VERSION = 'ctcm-8';
 const FILES = [
-  './', 'index.html', 'style.css?v=7', 'sounds.js?v=7', 'ads.js?v=7', 'shop.js?v=7', 'game.js?v=7', 'app.js?v=7',
-  'manifest.json', 'art/splash.jpg', 'art/wood.jpg',
-  'icons/icon-192.png', 'icons/icon-512.png',
+  './', 'index.html', 'style.css?v=8', 'sounds.js?v=8', 'ads.js?v=8', 'account.js?v=8', 'shop.js?v=8', 'game.js?v=8', 'app.js?v=8',
+  'manifest.json', 'art/splash.jpg', 'art/wood.jpg', 'art/coin.svg',
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'pictures/1.jpg', 'pictures/2.jpg', 'pictures/3.jpg', 'pictures/4.jpg', 'pictures/5.jpg'
 ];
 self.addEventListener('install', function (e) {
