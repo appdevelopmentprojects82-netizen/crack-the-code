@@ -1,9 +1,10 @@
 // Keeps the game working offline once it has been opened.
 // Change VERSION whenever you change a file, so phones fetch the new one.
-const VERSION = 'ctcm-11';
+const VERSION = 'ctcm-13';
 const FILES = [
-  './', 'index.html', 'style.css?v=11', 'sounds.js?v=11', 'ads.js?v=11', 'account.js?v=11', 'shop.js?v=11', 'leaderboard.js?v=11', 'tour.js?v=11', 'quest.js?v=11', 'game.js?v=11', 'extras.js?v=11', 'app.js?v=11',
+  './', 'index.html', 'style.css?v=13', 'sounds.js?v=13', 'ads.js?v=13', 'account.js?v=13', 'shop.js?v=13', 'leaderboard.js?v=13', 'tour.js?v=13', 'quest.js?v=13', 'game.js?v=13', 'extras.js?v=13', 'app.js?v=13',
   'manifest.json', 'art/splash.jpg', 'art/wood.jpg', 'art/coin.svg',
+  'art/world/1a.jpg', 'art/world/2a.jpg', 'art/world/3a.jpg', 'art/world/4a.jpg', 'art/world/5a.jpg', 'art/world/6a.jpg', 'art/world/7a.jpg', 'art/world/8a.jpg',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'pictures/1.jpg', 'pictures/2.jpg', 'pictures/3.jpg', 'pictures/4.jpg', 'pictures/5.jpg'
 ];

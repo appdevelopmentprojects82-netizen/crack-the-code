@@ -28,7 +28,8 @@ const LIFE_REGEN_MINUTES = 240; // one free life comes back every 4 hours (0 = n
 const AD_COINS         = 100;   // coins for watching an ad from the home page or shop
 // DAILY PUZZLE and RACE A FRIEND: same code for everyone, no hints, no lives used
 const DAILY_DIGITS = 5, DAILY_TRIES = 6, DAILY_COINS = 100;
-const RACE_DIGITS  = 4, RACE_TRIES  = 6, RACE_WIN_COINS = 150;
+const RACE_DIGITS  = 4, RACE_TRIES  = 6;
+const RACE_FEE = 100, RACE_MAX = 10;   // entry coins per player; the winner takes them all (ties share)
 // DAILY TARGETS: levels won today -> coins (100 a day in total). Resets at midnight.
 const DAILY_TARGETS = [
   { levels: 5,  coins: 20 },
@@ -66,12 +67,12 @@ function adAfterLevel(level) {
 const SAVE_KEY = 'ctcm-save-v1';
 // -----------------------------------------------------------
 
-// puts text into an element, drawing every 🪙 as the gold coin picture
+// puts text into an element, drawing every 🪙 as the gold coin and every 🪄 as the magic wand (eliminate)
 function coinText(el, text) {
   el.textContent = '';
-  String(text).split('🪙').forEach(function (part, i) {
-    if (i) { const c = document.createElement('i'); c.className = 'coin'; el.appendChild(c); }
-    if (part) el.appendChild(document.createTextNode(part));
+  String(text).split(/(🪙|🪄)/).forEach(function (part) {
+    if (part === '🪙' || part === '🪄') { const c = document.createElement('i'); c.className = part === '🪙' ? 'coin' : 'wand'; el.appendChild(c); }
+    else if (part) el.appendChild(document.createTextNode(part));
   });
 }
 
@@ -340,7 +341,7 @@ const Game = (function () {
     // eliminate button
     const eb = $('elim-btn');
     eb.innerHTML = '';
-    eb.appendChild(document.createTextNode('🧹 '));
+    eb.appendChild(document.createTextNode('🪄 '));
     const eb2 = document.createElement('b');
     if (save.elims > 0) eb2.textContent = save.elims; else coinText(eb2, ELIMINATE_PRICE + ' 🪙');
     eb.appendChild(eb2);
@@ -528,6 +529,7 @@ const Game = (function () {
     coinText($('shop-buy'), 'BUY ' + HINT_PACK_SIZE + ' HINTS · ' + HINT_PACK_PRICE + ' 🪙');
     $('shop-buy').disabled = save.coins < HINT_PACK_PRICE;
     $('shop-short').textContent = '';
+    $('shop-more').classList.toggle('hidden', save.coins >= HINT_PACK_PRICE);
     $('shop').classList.remove('hidden');
   }
   function buyHints() {
@@ -554,6 +556,7 @@ const Game = (function () {
     if (free) b.textContent = 'USE FREE ELIMINATE (' + save.elims + ')';
     else coinText(b, 'USE · ' + ELIMINATE_PRICE + ' 🪙');
     b.disabled = !free && save.coins < ELIMINATE_PRICE;
+    $('el-more').classList.toggle('hidden', free || save.coins >= ELIMINATE_PRICE);
     $('elim-modal').classList.remove('hidden');
   }
   function useElim() {
@@ -568,7 +571,7 @@ const Game = (function () {
     store();
     $('elim-modal').classList.add('hidden');
     Sounds.play('hint'); buzz([30, 40, 30]);
-    toast('🧹 ' + gone.sort().join(', ') + ' are not in the code');
+    toast('🪄 ' + gone.sort().join(', ') + ' are not in the code');
     render();
   }
 
@@ -581,6 +584,7 @@ const Game = (function () {
     $('ex-title').textContent = out ? 'OUT OF TRIES' : 'UNLOCK A TRY';
     coinText($('ex-coins'), 'USE ' + EXTRA_TRY_PRICE + ' 🪙');
     $('ex-coins').disabled = save.coins < EXTRA_TRY_PRICE;
+    $('ex-more').classList.toggle('hidden', save.coins >= EXTRA_TRY_PRICE);
     $('ex-close').textContent = out ? 'GIVE UP' : 'NOT NOW';
     $('extra-modal').classList.remove('hidden');
   }
@@ -701,7 +705,7 @@ const Game = (function () {
       c.paid = true;
       if (won && isDaily) { save.coins += DAILY_COINS; stat('dailies'); }
       store();
-      const me = { name: save.name, avatar: save.avatar, tries: won ? c.guesses.length : 99, ms: c.ms || 0, done: true };
+      const me = { name: save.name, avatar: save.avatar, tries: won ? c.guesses.length : 99, ms: c.ms || 0, done: true, paid: true };
       if (isDaily) { if (won) Board.dailyPush(c.day, save.pid, me); }
       else Board.raceSubmit(id, save.pid, me);
     }
@@ -738,7 +742,7 @@ const Game = (function () {
       lv && { el: function () { return document.querySelector('#grid .row.locked'); }, title: 'LOCKED TRIES',
         text: 'You have ' + MAX_TRIES + ' tries. Tap UNLOCK for up to ' + EXTRA_TRIES + ' more — watch an ad or pay ' + EXTRA_TRY_PRICE + ' 🪙.' },
       lv && { el: '#hint-btn', title: 'HINTS', text: 'Stuck? A hint shows one digit in its place.' },
-      lv && { el: '#elim-btn', title: 'ELIMINATE 🧹', text: 'Takes ' + ELIMINATE_DIGITS + ' digits that are not in the code off the keypad.' },
+      lv && { el: '#elim-btn', title: 'ELIMINATE 🪄', text: 'Takes ' + ELIMINATE_DIGITS + ' digits that are not in the code off the keypad.' },
       lv && { el: '#lives-chip', title: 'LIVES', text: 'Losing a level costs a life ❤️. One comes back every ' + (LIFE_REGEN_MINUTES / 60) + ' hours.' }
     ].filter(Boolean), function () { save.seenHelp = true; if (lv) save.seen.elim = true; store(); if (onEnd) onEnd(); });
   }
@@ -747,7 +751,7 @@ const Game = (function () {
   }
   const TOURS = [
     { key: 'elim', when: function () { return mode === 'level'; }, steps: function () { return [
-      { el: '#elim-btn', title: 'NEW: ELIMINATE 🧹', text: 'Takes ' + ELIMINATE_DIGITS + ' digits that are not in the code off the keypad.' }]; } },
+      { el: '#elim-btn', title: 'NEW: ELIMINATE 🪄', text: 'Takes ' + ELIMINATE_DIGITS + ' digits that are not in the code off the keypad.' }]; } },
     { key: 'boss', when: function () { return C().boss; }, steps: function () { return [
       { el: '#level', title: 'BOSS LEVEL 👑', text: 'The last level of every world. Only ' + BOSS_TRIES + ' tries — but it pays ×' + BOSS_COIN_TIMES + ' coins!' }]; } },
     { key: 'padlock', sel: '#code .code-box.padlock', steps: function () { return [
@@ -868,6 +872,9 @@ const Game = (function () {
     $('ex-ad').onclick = extraByAd;
     $('ex-coins').onclick = extraByCoins;
     $('ex-close').onclick = extraClose;
+    ['shop-more', 'el-more', 'ex-more'].forEach(function (id) {
+      $(id).onclick = function () { ['shop', 'elim-modal', 'extra-modal'].forEach(function (m) { $(m).classList.add('hidden'); }); App.goShop(); };
+    });
     Ads.banner($('ad-banner'));
     document.addEventListener('keydown', function (e) {
       if (!playing) return;
@@ -937,7 +944,7 @@ const Game = (function () {
     inProgress: function () { const c = save.cur; return !!c && !c.done && (c.guesses.length > 0 || (c.entry || []).length > 0); },
     toast: toast, musicHooks: musicHooks, LIVES_MAX: LIVES_MAX, LIFE_REFILL_PRICE: LIFE_REFILL_PRICE, AD_COINS: AD_COINS,
     HINT_PACK_PRICE: HINT_PACK_PRICE, HINT_PACK_SIZE: HINT_PACK_SIZE,
-    DAILY_TRIES: DAILY_TRIES, DAILY_COINS: DAILY_COINS, RACE_TRIES: RACE_TRIES, RACE_WIN_COINS: RACE_WIN_COINS,
+    DAILY_TRIES: DAILY_TRIES, DAILY_COINS: DAILY_COINS, RACE_TRIES: RACE_TRIES, RACE_FEE: RACE_FEE, RACE_MAX: RACE_MAX,
     // testing helpers
     _state: function () { return save; },
     _render: function () { wasOpen = null; render(); },

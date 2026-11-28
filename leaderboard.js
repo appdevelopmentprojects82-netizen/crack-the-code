@@ -11,7 +11,8 @@
           { "rules": {
               "players": { ".read": true, "$id": { ".write": true } },
               "daily":   { ".read": true, "$day": { "$id": { ".write": true } } },
-              "races":   { ".read": true, "$race": { ".write": true } } } }
+              "races":   { ".read": true, "$race": { ".write": true } },
+              "inbox":   { "$id": { ".read": true, ".write": true } } } }
    While LEADERBOARD_URL is empty the leaderboard shows only this player.
    ========================================================================== */
 'use strict';
@@ -62,7 +63,27 @@ const Board = (function () {
     fetch(base() + path + '.json', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) })
       .then(function (r) { if (done) done(r.ok); }).catch(function () { if (done) done(false); });
   }
-  const clean = function (p) { return { name: String(p.name || 'Player').slice(0, 16), avatar: +p.avatar || 0, tries: +p.tries || 99, ms: +p.ms || 0, done: !!p.done }; };
+  function del(path, done) {
+    if (!on()) { if (done) done(false); return; }
+    fetch(base() + path + '.json', { method: 'DELETE' }).then(function (r) { if (done) done(r.ok); }).catch(function () { if (done) done(false); });
+  }
+  const clean = function (p) { return { name: String(p.name || 'Player').slice(0, 16), avatar: +p.avatar || 0, tries: +p.tries || 99, ms: +p.ms || 0, done: !!p.done, paid: !!p.paid }; };
+
+  // ---- friends: find a player by their exact username (not case sensitive) ----
+  function findByName(name, done) {
+    get('/players', function (all) {
+      if (all === undefined) { done(undefined); return; }
+      const want = String(name).trim().toLowerCase();
+      const id = Object.keys(all || {}).filter(function (k) { return String((all[k] || {}).name || '').toLowerCase() === want; })[0];
+      done(id ? { id: id, name: all[id].name, avatar: +all[id].avatar || 0, level: +all[id].level || 1, stars: +all[id].stars || 0 } : null);
+    });
+  }
+  function players(done) { get('/players', function (all) { done(all === undefined ? null : all || {}); }); }
+
+  // ---- messages between players (race invites, "added you as a friend") ----
+  function inbox(pid, done) { get('/inbox/' + encodeURIComponent(pid), function (m) { done(m === undefined ? null : m || {}); }); }
+  function send(toPid, msgId, msg, done) { put('/inbox/' + encodeURIComponent(toPid) + '/' + msgId, msg, done); }
+  function unsend(pid, msgId) { del('/inbox/' + encodeURIComponent(pid) + '/' + msgId); }
 
   // ---- daily puzzle: fewest tries first, then fastest ----
   function dailyPush(day, pid, me) { put('/daily/' + day + '/' + encodeURIComponent(pid), me); }
@@ -76,17 +97,18 @@ const Board = (function () {
   }
 
   // ---- race a friend ----
-  function raceCreate(id, host, done) { put('/races/' + id, { by: host, at: Date.now() }, done); }
+  function raceCreate(id, race, done) { put('/races/' + id, race, done); }
   function raceGet(id, done) {
     get('/races/' + id, function (r) {
       if (r === undefined) { done(undefined); return; }
       if (!r) { done(null); return; }
       const players = Object.keys(r.players || {}).map(function (pid) { return Object.assign({ id: pid }, clean(r.players[pid])); });
-      done({ by: r.by || {}, at: r.at || 0, players: players });
+      done({ by: r.by || {}, at: r.at || 0, day: r.day || '', fee: +r.fee || 0, max: +r.max || 10, invited: r.invited || [], players: players });
     });
   }
   function raceSubmit(id, pid, me) { put('/races/' + id + '/players/' + encodeURIComponent(pid), me); }
 
   return { on: on, push: push, load: load, dailyPush: dailyPush, dailyLoad: dailyLoad,
-           raceCreate: raceCreate, raceGet: raceGet, raceSubmit: raceSubmit };
+           raceCreate: raceCreate, raceGet: raceGet, raceSubmit: raceSubmit,
+           findByName: findByName, players: players, inbox: inbox, send: send, unsend: unsend };
 })();

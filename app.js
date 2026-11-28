@@ -94,6 +94,8 @@ const App = (function () {
   function closeModals() { ['lives-modal', 'profile', 'settings', 'notice', 'daily', 'adr', 'x-modal'].forEach(function (id) { $(id).classList.add('hidden'); }); }
 
   function play() { playMode('level'); }
+  // "buy more coins" from anywhere (a level keeps its progress)
+  function goShop() { closeModals(); show('shop'); }
   // the quest, today's daily puzzle, or a race
   function playMode(which, id) {
     show('game');
@@ -101,7 +103,8 @@ const App = (function () {
   }
 
   // ======================= HOME ===========================================
-  let mapLevel = 0;
+  let mapLevel = 0, mapSeen = 0;
+  window.addEventListener('resize', function () { if (screen === 'home') { mapLevel = 0; update(); } });
   function avatarHTML(el, i) {
     const a = AVATARS[i] || AVATARS[0];
     el.style.setProperty('--av', AVATAR_COLOURS[i % AVATAR_COLOURS.length]);
@@ -120,7 +123,11 @@ const App = (function () {
     $('daily-btn').classList.toggle('ready', Game.dailyReady());
     if (!$('daily').classList.contains('hidden')) fillDaily();
     if (!$('adr').classList.contains('hidden')) fillAds();
-    if (screen === 'home' && (mapLevel !== s.level || !$('play-btn'))) { mapLevel = s.level; Quest.drawMap($('map'), s.level, play); }
+    if (screen === 'home' && (mapLevel !== s.level || !$('play-btn'))) {
+      mapLevel = s.level;
+      Quest.drawMap($('map'), s.level, play, mapSeen);          // glides up from the last level seen
+      mapSeen = s.level;
+    }
     Extras.refreshHome();
     $('home-ad').classList.toggle('ready', Game.adDay().count < Game.AD_LADDER[Game.AD_LADDER.length - 1].ads);
     avatarHTML($('pfp-btn'), s.avatar);
@@ -473,6 +480,7 @@ const App = (function () {
         const lv = document.createElement('span'); lv.className = 'rl'; lv.textContent = 'LV ' + p.level;
         const st = document.createElement('span'); st.className = 'rs'; st.textContent = '⭐ ' + p.stars;
         [n, pic, nm, lv, st].forEach(function (x) { r.appendChild(x); });
+        if (p.id !== s.pid) { r.classList.add('tap'); r.onclick = function () { Extras.playerCard(p); }; }
         box.appendChild(r);
       });
     });
@@ -526,6 +534,6 @@ const App = (function () {
   else init();
 
   return { home: home, show: show, livesModal: livesModal, livesChanged: livesChanged, buzz: buzz, update: update,
-           playMode: playMode, avatar: avatarHTML,
+           playMode: playMode, avatar: avatarHTML, goShop: goShop,
            onWin: function () { Board.push(S()); } };
 })();

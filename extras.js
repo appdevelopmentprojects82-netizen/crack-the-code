@@ -96,7 +96,7 @@ const Extras = (function () {
       const t = el('div', 'streak-day' + (n < day ? ' past' : n === day ? ' now' : '') + (n === STREAK_REWARDS.length ? ' big' : ''));
       t.appendChild(el('small', '', 'DAY ' + n));
       t.appendChild(el('b', '', n < day ? '✓' : (n === STREAK_REWARDS.length ? '🎁' : '')));
-      t.appendChild(el('span', '', r.coins + ' 🪙' + (r.elims ? ' +🧹' : '')));
+      t.appendChild(el('span', '', r.coins + ' 🪙' + (r.elims ? ' +🪄' : '')));
       row.appendChild(t);
     });
     sheet({ icon: '🔥', title: 'DAY ' + day + ' STREAK!', body: row,
@@ -114,7 +114,7 @@ const Extras = (function () {
     if (r.elims) s.elims += r.elims;
     Game.persist();
     closeSheet();
-    reward(r.coins, r.elims ? ' +1 🧹' : '');
+    reward(r.coins, r.elims ? ' +1 🪄' : '');
   }
 
   // ======================= STAR CHESTS ====================================
@@ -149,7 +149,7 @@ const Extras = (function () {
       const got = el('div', 'chest-got');
       got.appendChild(el('div', '', '+' + coins + ' 🪙'));
       if (hint) got.appendChild(el('div', '', '+1 💡 HINT'));
-      if (elim) got.appendChild(el('div', '', '+1 🧹 ELIMINATE'));
+      if (elim) got.appendChild(el('div', '', '+1 🪄 ELIMINATE'));
       body.appendChild(got);
       const m = $('x-main');
       m.disabled = false; coinText(m, 'CLAIM REWARD');
@@ -263,22 +263,156 @@ const Extras = (function () {
   }
   function rankRow(k, p, a, b) {
     const r = el('div', 'rank-row' + (p.id === S().pid ? ' me' : ''));
-    r.appendChild(el('span', 'rk', k < 3 ? ['🥇', '🥈', '🥉'][k] : String(k + 1)));
+    r.appendChild(el('span', 'rk', k < 0 ? '' : k < 3 ? ['🥇', '🥈', '🥉'][k] : String(k + 1)));
     const pic = el('div', 'pfp'); App.avatar(pic, p.avatar); r.appendChild(pic);
     r.appendChild(el('b', 'rn', p.name));
     r.appendChild(el('span', 'rl', a));
     r.appendChild(el('span', 'rs', b));
+    if (p.id && p.id !== S().pid) { r.classList.add('tap'); r.onclick = function () { playerCard(p); }; }
     return r;
   }
 
-  // ======================= RACE A FRIEND ==================================
+  // ======================= FRIENDS ========================================
+  function friends() { const s = S(); if (!s.friends) s.friends = {}; return s.friends; }
+  function isFriend(pid) { return !!friends()[pid]; }
+  function addFriend(p, quiet) {
+    if (!p || !p.id || p.id === S().pid) return;
+    friends()[p.id] = { name: p.name, avatar: p.avatar || 0 };
+    Game.persist();
+    // let them know (they can add you back)
+    Board.send(p.id, 'f_' + S().pid, { type: 'friend', from: me(), at: Date.now() });
+    if (!quiet) { Sounds.play('correct'); Game.toast('👥 ' + p.name + ' added as a friend!'); }
+  }
+  function removeFriend(pid) { delete friends()[pid]; Game.persist(); }
+  function me() { const s = S(); return { pid: s.pid, name: s.name, avatar: s.avatar }; }
+
+  // tapping a player on the leaderboard
+  function playerCard(p) {
+    if (!p || p.id === S().pid) return;
+    const body = el('div', 'pcard');
+    const pic = el('div', 'pfp huge'); App.avatar(pic, p.avatar); body.appendChild(pic);
+    body.appendChild(el('div', 'race-vs', p.name));
+    if (p.level) body.appendChild(el('div', 'dp-chips', '🏆 LEVEL ' + p.level + '   ⭐ ' + (p.stars || 0)));
+    const fr = isFriend(p.id);
+    sheet({ icon: '', title: fr ? 'FRIEND ✓' : 'PLAYER', body: body,
+      main: fr ? { text: 'REMOVE FRIEND', action: function () { removeFriend(p.id); closeSheet(); Game.toast('Removed from friends'); } }
+               : { text: '👥 ADD FRIEND', cls: 'green', action: function () { addFriend(p); closeSheet(); } } });
+  }
+
+  // the friends window: add by username, messages, your friends
+  let inboxCache = {};
+  function openFriends() {
+    const body = el('div', 'fr-box');
+    // add by exact username
+    body.appendChild(el('div', 'field-label', 'ADD A FRIEND BY USERNAME'));
+    const row = el('div', 'fr-add');
+    const input = document.createElement('input');
+    input.id = 'fr-name'; input.placeholder = 'Exact username'; input.maxLength = 16; input.autocomplete = 'off'; input.spellcheck = false;
+    const go = el('button', 'fr-go', 'ADD');
+    const msg = el('div', 'fr-msg');
+    go.onclick = function () {
+      const name = input.value.trim();
+      if (name.length < 3) { msg.textContent = 'Type the full username'; return; }
+      if (name.toLowerCase() === S().name.toLowerCase()) { msg.textContent = 'That’s you! 😄'; return; }
+      msg.textContent = 'Searching…';
+      Board.findByName(name, function (p) {
+        if (p === undefined) { msg.textContent = 'Offline — try again later'; return; }
+        if (!p) { msg.textContent = 'No player called “' + name + '”'; return; }
+        if (isFriend(p.id)) { msg.textContent = p.name + ' is already your friend'; return; }
+        addFriend(p); openFriends();
+      });
+    };
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go.click(); });
+    row.appendChild(input); row.appendChild(go);
+    body.appendChild(row); body.appendChild(msg);
+    // messages
+    const inbox = el('div', 'fr-inbox');
+    body.appendChild(inbox);
+    fillInbox(inbox);
+    // your friends
+    const ids = Object.keys(friends());
+    body.appendChild(el('div', 'field-label', 'YOUR FRIENDS (' + ids.length + ')'));
+    const list = el('div', 'rank-list small');
+    if (!ids.length) list.appendChild(el('div', 'rank-wait', 'NO FRIENDS YET — ADD THEM HERE OR FROM THE LEADERBOARD'));
+    ids.forEach(function (id) {
+      const f = friends()[id];
+      const r = rankRow(-1, { id: id, name: f.name, avatar: f.avatar }, '', '');
+      const x = el('button', 'fr-x', '✕');
+      x.onclick = function (e) { e.stopPropagation(); removeFriend(id); openFriends(); };
+      r.appendChild(x);
+      list.appendChild(r);
+    });
+    body.appendChild(list);
+    // show their levels
+    Board.players(function (all) {
+      if (!all) return;
+      ids.forEach(function (id, k) {
+        const r = list.children[k]; if (!r || !all[id]) return;
+        friends()[id].name = all[id].name || friends()[id].name; friends()[id].avatar = +all[id].avatar || 0;
+        r.querySelector('.rn').textContent = friends()[id].name;
+        r.querySelector('.rl').textContent = 'LV ' + (all[id].level || 1);
+      });
+      Game.persist();
+    });
+    sheet({ icon: '👥', title: 'FRIENDS', body: body });
+    markSeen();
+  }
+  function fillInbox(box) {
+    box.innerHTML = '';
+    Board.inbox(S().pid, function (m) {
+      if (!m) return;
+      inboxCache = m;
+      const keys = Object.keys(m).sort(function (a, b) { return (m[b].at || 0) - (m[a].at || 0); });
+      const items = keys.filter(function (k) { return m[k] && (m[k].type !== 'race' || m[k].day === Game.utcDay()); });
+      if (!items.length) return;
+      box.appendChild(el('div', 'field-label', 'MESSAGES'));
+      items.forEach(function (k) {
+        const x = m[k], from = x.from || {};
+        const r = el('div', 'fr-msgrow');
+        const pic = el('div', 'pfp'); App.avatar(pic, from.avatar || 0); r.appendChild(pic);
+        const t = el('div', 'fr-text', x.type === 'race' ? '⚔️ ' + from.name + ' invited you to a race' : '👥 ' + from.name + ' added you as a friend');
+        r.appendChild(t);
+        const b = el('button', 'fr-act', x.type === 'race' ? 'JOIN' : isFriend(from.pid) ? 'OK' : 'ADD BACK');
+        b.onclick = function () {
+          Board.unsend(S().pid, k);
+          if (x.type === 'race') { closeSheet(); joinRace(x.race); }
+          else { if (!isFriend(from.pid)) addFriend({ id: from.pid, name: from.name, avatar: from.avatar }); r.remove(); }
+        };
+        r.appendChild(b);
+        box.appendChild(r);
+      });
+    });
+  }
+  // a red "!" on the friends / race buttons when there are new messages
+  function checkInbox(announce) {
+    Board.inbox(S().pid, function (m) {
+      if (!m) return;
+      inboxCache = m;
+      const seen = S().seenMsgs || {};
+      const fresh = Object.keys(m).filter(function (k) { return m[k] && !seen[k] && (m[k].type !== 'race' || m[k].day === Game.utcDay()); });
+      $('friends-btn').classList.toggle('ready', fresh.length > 0);
+      $('race-btn').classList.toggle('ready', fresh.some(function (k) { return m[k].type === 'race'; }));
+      if (announce && fresh.length) {
+        const r = fresh.filter(function (k) { return m[k].type === 'race'; })[0];
+        Game.toast(r ? '⚔️ ' + m[r].from.name + ' invited you to a race!' : '👥 ' + m[fresh[0]].from.name + ' added you as a friend');
+      }
+    });
+  }
+  function markSeen() {
+    const s = S(); if (!s.seenMsgs) s.seenMsgs = {};
+    Object.keys(inboxCache || {}).forEach(function (k) { s.seenMsgs[k] = 1; });
+    Game.persist();
+    $('friends-btn').classList.remove('ready'); $('race-btn').classList.remove('ready');
+  }
+
+  // ======================= RACE (up to 10 friends, 100 coins each) =========
   function newId() { const c = 'abcdefghjkmnpqrstuvwxyz23456789'; let s = ''; for (let i = 0; i < 8; i++) s += c[Math.floor(Math.random() * c.length)]; return s; }
   function myRaces() { const s = S(); if (!s.myRaces) s.myRaces = []; return s.myRaces; }
   function remember(id) { const l = myRaces(); const i = l.indexOf(id); if (i >= 0) l.splice(i, 1); l.unshift(id); l.length = Math.min(l.length, 10); Game.persist(); }
   function raceLink(id) { return location.origin + location.pathname + '?race=' + id; }
   function shareRace(id) {
     const url = raceLink(id);
-    const text = '⚔️ ' + S().name + ' challenged you to a Code Quest race! Same code, fewest tries wins.';
+    const text = '⚔️ ' + S().name + ' challenged you to a Code Quest race! ' + Game.RACE_FEE + ' coins to enter — the winner takes them all.';
     if (navigator.share) { navigator.share({ title: 'Code Quest race', text: text, url: url }).catch(function () { /* closed */ }); return; }
     copy(url);
     window.open('https://wa.me/?text=' + encodeURIComponent(text + ' ' + url), '_blank');
@@ -287,13 +421,21 @@ const Extras = (function () {
     try { navigator.clipboard.writeText(t).then(function () { Game.toast('🔗 Link copied!'); }); }
     catch (e) { Game.toast(t); }
   }
-  // who won? fewest tries, then fastest. Only players who finished count.
-  function ranking(players) {
-    return players.filter(function (p) { return p.done; }).sort(function (a, b) { return a.tries - b.tries || a.ms - b.ms; });
-  }
-  function openRaces() {
+  function untilUtcEnd() { return untilUtcMidnight(); }
+  const RACE_CHIPS = function () { return '🎟️ ' + Game.RACE_FEE + ' 🪙 ENTRY   👥 UP TO ' + Game.RACE_MAX + '   🏆 WINNER TAKES ALL'; };
+  function notEnough() {
     const body = el('div', 'race-box');
-    body.appendChild(el('div', 'dp-chips', '🔢 4 DIGITS   🎯 ' + Game.RACE_TRIES + ' TRIES   🏆 +' + Game.RACE_WIN_COINS + ' 🪙'));
+    body.appendChild(el('div', 'race-step', 'You need ' + Game.RACE_FEE + ' 🪙 to enter a race.'));
+    sheet({ icon: '⚔️', title: 'NOT ENOUGH COINS', body: body,
+      main: { text: '🪙 BUY MORE COINS', action: function () { closeSheet(); App.goShop(); } } });
+  }
+
+  // the race window: start a race or look at your races
+  function openRaces() {
+    markSeen();
+    const body = el('div', 'race-box');
+    body.appendChild(el('div', 'dp-chips', RACE_CHIPS()));
+    const inbox = el('div', 'fr-inbox'); body.appendChild(inbox); fillInbox(inbox);
     const ids = myRaces();
     if (ids.length) {
       body.appendChild(el('div', 'field-label', 'YOUR RACES'));
@@ -305,45 +447,128 @@ const Extras = (function () {
         list.appendChild(r);
         Board.raceGet(id, function (race) {
           if (!race) { r.textContent = '⚔️ Race ' + id.toUpperCase() + ' · offline'; return; }
-          r.textContent = '⚔️ ' + raceTitle(race) + ' · ' + raceStatus(id, race).short;
+          r.textContent = '⚔️ ' + raceTitle(race) + ' · ' + raceStatus(race).short;
         });
       });
     }
-    sheet({ icon: '⚔️', title: 'RACE A FRIEND', body: body,
-      main: { text: '＋ NEW RACE', cls: 'green', action: createRace } });
+    sheet({ icon: '⚔️', title: 'RACE FRIENDS', body: body, main: { text: '＋ NEW RACE', cls: 'green', action: pickFriends } });
   }
-  function raceTitle(race) {
-    const me = S().pid;
-    const others = race.players.filter(function (p) { return p.id !== me; }).map(function (p) { return p.name; });
-    if (race.by && race.by.pid !== me && others.indexOf(race.by.name) < 0) others.unshift(race.by.name);
-    return others.length ? 'vs ' + others.slice(0, 2).join(', ') + (others.length > 2 ? ' +' + (others.length - 2) : '') : 'Waiting for a friend';
+  // choose who to invite (or all friends at once)
+  function pickFriends() {
+    if (S().coins < Game.RACE_FEE) { notEnough(); return; }
+    const ids = Object.keys(friends());
+    const body = el('div', 'race-box');
+    body.appendChild(el('div', 'dp-chips', RACE_CHIPS()));
+    const chosen = {};
+    const count = el('div', 'race-step');
+    const max = Game.RACE_MAX - 1;
+    function upd() { count.textContent = Object.keys(chosen).length + ' / ' + max + ' friends invited'; }
+    if (ids.length) {
+      const all = el('button', 'wide-btn', '📣 INVITE ALL FRIENDS');
+      all.onclick = function () {
+        const on = Object.keys(chosen).length < Math.min(max, ids.length);
+        ids.forEach(function (id, k) { const cb = list.children[k]; if (on && Object.keys(chosen).length < max) { chosen[id] = 1; cb.classList.add('on'); } else if (!on) { delete chosen[id]; cb.classList.remove('on'); } });
+        upd();
+      };
+      body.appendChild(all);
+      body.appendChild(count);
+      const list = el('div', 'rank-list small');
+      ids.forEach(function (id) {
+        const f = friends()[id];
+        const r = rankRow(-1, { id: id, name: f.name, avatar: f.avatar }, '', '');
+        r.classList.add('pick');
+        r.onclick = function () {
+          if (chosen[id]) { delete chosen[id]; r.classList.remove('on'); }
+          else if (Object.keys(chosen).length < max) { chosen[id] = 1; r.classList.add('on'); }
+          else Game.toast('Up to ' + Game.RACE_MAX + ' players in a race');
+          upd();
+        };
+        list.appendChild(r);
+      });
+      body.appendChild(list);
+      upd();
+    } else {
+      body.appendChild(el('div', 'race-step', '👥 Add friends to invite them — or share a link after you start.'));
+    }
+    sheet({ icon: '⚔️', title: 'NEW RACE', body: body,
+      main: { text: 'START RACE · ' + Game.RACE_FEE + ' 🪙', cls: 'green', action: function () { createRace(Object.keys(chosen)); } } });
   }
-  function raceStatus(id, race) {
-    const me = S().pid;
-    const mine = race.players.filter(function (p) { return p.id === me; })[0];
-    const others = race.players.filter(function (p) { return p.id !== me && p.done; });
-    if (!mine || !mine.done) return { short: 'YOUR TURN', mine: null };
-    if (!others.length) return { short: 'WAITING', mine: mine };
-    const best = ranking(race.players)[0];
-    return { short: best.id === me ? 'YOU WON 🏆' : 'YOU LOST', mine: mine, won: best.id === me, final: true };
-  }
-  function createRace() {
+  function createRace(invited) {
+    const s = S();
+    if (s.coins < Game.RACE_FEE) { notEnough(); return; }
     const id = newId();
     $('x-main').disabled = true;
-    Board.raceCreate(id, { pid: S().pid, name: S().name, avatar: S().avatar }, function (ok) {
-      if (!ok) { $('x-main').disabled = false; Game.toast('Could not create the race — check your internet'); return; }
+    const race = { by: me(), at: Date.now(), day: Game.utcDay(), fee: Game.RACE_FEE, max: Game.RACE_MAX, invited: invited,
+                   players: {} };
+    race.players[s.pid] = { name: s.name, avatar: s.avatar, paid: true, done: false };
+    Board.raceCreate(id, race, function (ok) {
+      if (!ok) { $('x-main').disabled = false; Game.toast('Could not start the race — check your internet'); return; }
+      s.coins -= Game.RACE_FEE; Game.persist(); App.update();
       remember(id);
+      invited.forEach(function (pid) { Board.send(pid, 'r_' + id, { type: 'race', race: id, day: race.day, from: me(), at: Date.now() }); });
       const body = el('div', 'race-box');
-      body.appendChild(el('div', 'race-step', '1️⃣ Send the link to a friend'));
+      body.appendChild(el('div', 'race-step', invited.length ? '📨 ' + invited.length + ' friend' + (invited.length > 1 ? 's' : '') + ' invited!' : '1️⃣ Send the link to your friends'));
       const link = el('button', 'race-link', raceLink(id).replace(/^https?:\/\//, ''));
       link.onclick = function () { copy(raceLink(id)); };
       body.appendChild(link);
       const sh = el('button', 'wide-btn', '📤 SHARE LINK'); sh.onclick = function () { shareRace(id); };
       body.appendChild(sh);
-      body.appendChild(el('div', 'race-step', '2️⃣ Crack the code — fewest tries wins!'));
-      sheet({ icon: '⚔️', title: 'RACE CREATED', body: body,
+      body.appendChild(el('div', 'race-step', '⏳ The race ends at midnight — fewest tries wins the pot!'));
+      sheet({ icon: '⚔️', title: 'RACE STARTED', body: body,
         main: { text: '▶ PLAY MY TURN', cls: 'green', action: function () { closeSheet(); App.playMode('race', id); } } });
     });
+  }
+  // invited / opened a link: pay the entry and play
+  function joinRace(id) {
+    sheet({ icon: '⚔️', title: 'RACE', body: el('div', 'rank-wait', 'LOADING…') });
+    Board.raceGet(id, function (race) {
+      if (!race) { sheet({ icon: '⚔️', title: 'RACE', body: el('div', 'rank-wait', race === null ? 'THIS RACE WAS NOT FOUND' : 'OFFLINE — TRY AGAIN LATER') }); return; }
+      remember(id);
+      const mine = race.players.filter(function (p) { return p.id === S().pid; })[0];
+      if (mine || raceStatus(race).final) { raceResult(id); return; }
+      if (race.players.length >= (race.max || Game.RACE_MAX)) { sheet({ icon: '⚔️', title: 'RACE FULL', body: el('div', 'rank-wait', 'THIS RACE ALREADY HAS ' + race.players.length + ' PLAYERS') }); return; }
+      const fee = race.fee || 0;
+      const body = el('div', 'race-box');
+      body.appendChild(el('div', 'race-vs', '⚔️ ' + ((race.by && race.by.name) || 'A friend') + ' challenged you!'));
+      body.appendChild(el('div', 'dp-chips', '🎟️ ' + fee + ' 🪙 ENTRY   🏆 POT NOW ' + pot(race) + ' 🪙   👥 ' + race.players.length + '/' + (race.max || Game.RACE_MAX)));
+      const time = el('div', 'lad-reset'); body.appendChild(time);
+      sheet({ icon: '⚔️', title: 'RACE CHALLENGE', body: body,
+        tick: function () { time.textContent = '⏳ ENDS IN ' + fmtClock(untilUtcEnd()); },
+        main: S().coins < fee ? { text: '🪙 BUY MORE COINS', action: function () { closeSheet(); App.goShop(); } }
+          : { text: 'JOIN & PLAY · ' + fee + ' 🪙', cls: 'green', action: function () {
+            const s = S();
+            if (s.coins < fee) { notEnough(); return; }
+            $('x-main').disabled = true;
+            Board.raceSubmit(id, s.pid, { name: s.name, avatar: s.avatar, paid: true, done: false });
+            s.coins -= fee; Game.persist(); App.update();
+            closeSheet(); App.playMode('race', id);
+          } } });
+    });
+  }
+  function pot(race) { return (race.fee || 0) * race.players.filter(function (p) { return p.paid; }).length; }
+  // fewest tries first, then fastest. Only players who finished count.
+  function ranking(players) {
+    return players.filter(function (p) { return p.done && p.tries < 99; }).sort(function (a, b) { return a.tries - b.tries || a.ms - b.ms; });
+  }
+  function raceTitle(race) {
+    const mine = S().pid;
+    const others = race.players.filter(function (p) { return p.id !== mine; }).map(function (p) { return p.name; });
+    return others.length ? 'vs ' + others.slice(0, 2).join(', ') + (others.length > 2 ? ' +' + (others.length - 2) : '') : 'Waiting for friends';
+  }
+  // the race is over at midnight (UTC), or once everyone invited (or 10 players) has finished
+  function raceStatus(race) {
+    const mine = S().pid;
+    const me1 = race.players.filter(function (p) { return p.id === mine; })[0];
+    const allDone = race.players.length > 0 && race.players.every(function (p) { return p.done; });
+    const invitedIn = (race.invited || []).every(function (pid) { return race.players.some(function (p) { return p.id === pid; }); });
+    const dayOver = race.day && race.day < Game.utcDay();
+    const final = dayOver || (allDone && (race.players.length >= (race.max || Game.RACE_MAX) || ((race.invited || []).length > 0 && invitedIn)));
+    const rank = ranking(race.players);
+    const best = rank[0];
+    const winners = best ? rank.filter(function (p) { return p.tries === best.tries && p.ms === best.ms; }) : [];
+    const won = winners.some(function (p) { return p.id === mine; });
+    let short = !me1 ? 'JOIN' : !me1.done ? 'YOUR TURN' : final ? (won ? 'YOU WON 🏆' : 'FINISHED') : 'WAITING';
+    return { short: short, mine: me1, final: final, winners: winners, won: won, share: winners.length ? Math.floor(pot(race) / winners.length) : 0 };
   }
   function raceResult(id) {
     sheet({ icon: '⚔️', title: 'RACE', body: el('div', 'rank-wait', 'LOADING…') });
@@ -351,34 +576,38 @@ const Extras = (function () {
       if (race === undefined) { sheet({ icon: '⚔️', title: 'RACE', body: el('div', 'rank-wait', 'OFFLINE — TRY AGAIN LATER') }); return; }
       if (race === null) { sheet({ icon: '⚔️', title: 'RACE', body: el('div', 'rank-wait', 'THIS RACE WAS NOT FOUND') }); return; }
       remember(id);
-      const st = raceStatus(id, race);
+      const st = raceStatus(race);
       const body = el('div', 'race-box');
       body.appendChild(el('div', 'race-vs', raceTitle(race)));
+      body.appendChild(el('div', 'dp-chips', '🏆 POT ' + pot(race) + ' 🪙   👥 ' + race.players.length + '/' + (race.max || Game.RACE_MAX)));
       const list = el('div', 'rank-list small');
-      const done = ranking(race.players);
-      done.forEach(function (p, k) { list.appendChild(rankRow(k, p, p.tries >= 99 ? '✗' : p.tries + (p.tries === 1 ? ' TRY' : ' TRIES'), fmtClock(p.ms))); });
-      race.players.filter(function (p) { return !p.done; }).forEach(function (p) { list.appendChild(rankRow(9, p, 'PLAYING', '')); });
-      if (!race.players.length) list.appendChild(el('div', 'rank-wait', 'NOBODY HAS PLAYED YET'));
+      ranking(race.players).forEach(function (p, k) { list.appendChild(rankRow(k, p, p.tries + (p.tries === 1 ? ' TRY' : ' TRIES'), fmtClock(p.ms))); });
+      race.players.filter(function (p) { return p.done && p.tries >= 99; }).forEach(function (p) { list.appendChild(rankRow(-1, p, '✗', '')); });
+      race.players.filter(function (p) { return !p.done; }).forEach(function (p) { list.appendChild(rankRow(-1, p, st.final ? '—' : 'PLAYING', '')); });
       body.appendChild(list);
+      const time = el('div', 'lad-reset');
       let main = null;
-      if (!st.mine) main = { text: '▶ PLAY', cls: 'green', action: function () { closeSheet(); App.playMode('race', id); } };
-      if (st.short === 'WAITING') {
-        body.appendChild(el('div', 'race-step', '⏳ Waiting for your friend…'));
-        main = { text: '📤 SHARE LINK AGAIN', action: function () { shareRace(id); } };
-      }
-      if (st.final) {
-        body.appendChild(el('div', 'race-win ' + (st.won ? 'won' : 'lost'), st.won ? '🏆 YOU WON!' : 'YOU LOST — REMATCH?'));
+      if (!st.final) {
+        body.appendChild(time);
+        if (!st.mine) main = { text: 'JOIN · ' + (race.fee || 0) + ' 🪙', cls: 'green', action: function () { joinRace(id); } };
+        else if (!st.mine.done) main = { text: '▶ PLAY MY TURN', cls: 'green', action: function () { closeSheet(); App.playMode('race', id); } };
+        else main = { text: '📤 INVITE MORE', action: function () { shareRace(id); } };
+      } else {
         const s = S();
         if (!s.raceWon) s.raceWon = {};
-        if (st.won && !s.raceWon[id]) {
-          main = { text: 'CLAIM REWARD · ' + Game.RACE_WIN_COINS + ' 🪙', action: function () {
+        const names = st.winners.map(function (p) { return p.name; }).join(' & ');
+        body.appendChild(el('div', 'race-win ' + (st.won ? 'won' : 'lost'),
+          st.won ? (st.winners.length > 1 ? '🤝 TIE — YOU SHARE THE POT!' : '🏆 YOU WON THE POT!') : names ? '🏆 ' + names + ' won' : 'Nobody finished'));
+        if (st.won && !s.raceWon[id] && st.share > 0) {
+          main = { text: 'CLAIM REWARD · ' + st.share + ' 🪙', action: function () {
             if (s.raceWon[id]) return;
-            s.raceWon[id] = true; s.coins += Game.RACE_WIN_COINS; Game.stat('raceWins'); Game.persist();
-            closeSheet(); reward(Game.RACE_WIN_COINS);
+            s.raceWon[id] = true; s.coins += st.share; Game.stat('raceWins'); Game.persist();
+            closeSheet(); reward(st.share);
           } };
-        } else main = { text: '⚔️ NEW RACE', cls: 'green', action: createRace };
+        } else main = { text: '⚔️ NEW RACE', cls: 'green', action: pickFriends };
       }
-      sheet({ icon: '⚔️', title: 'RACE', body: body, main: main });
+      sheet({ icon: '⚔️', title: st.final ? 'RACE RESULT' : 'RACE', body: body, main: main,
+        tick: st.final ? null : function () { time.textContent = '⏳ ENDS IN ' + fmtClock(untilUtcEnd()); } });
     });
   }
   // a friend opened a race link
@@ -387,17 +616,7 @@ const Extras = (function () {
     try { id = new URLSearchParams(location.search).get('race'); } catch (e) { /* old browser */ }
     if (!id || !/^[a-z0-9]{4,16}$/.test(id)) return false;
     try { history.replaceState(history.state, '', location.pathname); } catch (e) { /* ignore */ }
-    Board.raceGet(id, function (race) {
-      if (!race) { Game.toast(race === null ? 'That race was not found' : 'Offline — open the link again later'); return; }
-      remember(id);
-      const mine = race.players.filter(function (p) { return p.id === S().pid; })[0];
-      if (mine) { raceResult(id); return; }
-      const body = el('div', 'race-box');
-      body.appendChild(el('div', 'race-vs', '⚔️ ' + ((race.by && race.by.name) || 'A friend') + ' challenged you!'));
-      body.appendChild(el('div', 'dp-chips', '🔢 4 DIGITS   🎯 ' + Game.RACE_TRIES + ' TRIES   🏆 +' + Game.RACE_WIN_COINS + ' 🪙'));
-      sheet({ icon: '⚔️', title: 'RACE CHALLENGE', body: body,
-        main: { text: '▶ ACCEPT & PLAY', cls: 'green', action: function () { closeSheet(); App.playMode('race', id); } } });
-    });
+    joinRace(id);
     return true;
   }
 
@@ -414,12 +633,15 @@ const Extras = (function () {
   function onStart() {
     applySkin();
     if (!joinFromLink()) setTimeout(showStreak, 300);
+    checkInbox(true);
+    setInterval(function () { if (!document.hidden) checkInbox(false); }, 60000);
   }
 
   function init() {
     $('x-close').onclick = closeSheet;
     $('dp-btn').onclick = dailyBoard;
     $('race-btn').onclick = openRaces;
+    $('friends-btn').onclick = openFriends;
     $('chest-btn').onclick = openChestScreen;
     $('ach-btn').onclick = openAchievements;
   }
@@ -427,5 +649,6 @@ const Extras = (function () {
   else init();
 
   return { onStart: onStart, refreshHome: refreshHome, dailyBoard: dailyBoard, dailyList: dailyList, raceResult: raceResult,
+           playerCard: playerCard, openFriends: openFriends, checkInbox: checkInbox,
            fillSkins: fillSkins, applySkin: applySkin, showStreak: showStreak, closeSheet: closeSheet };
 })();

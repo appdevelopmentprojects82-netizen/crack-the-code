@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&display=swap">
   <link rel="preload" as="image" href="art/splash.jpg">
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
   <div id="bg"></div>
@@ -35,7 +35,7 @@
   </div>
 
   <!-- ===================== HOME ===================== -->
-  <section id="home" class="screen wood hidden">
+  <section id="home" class="screen hidden">
     <header class="home-top">
       <button id="pfp-btn" class="pfp" aria-label="Your profile"></button>
       <button id="daily-btn" class="side-btn" aria-label="Daily targets">
@@ -52,12 +52,13 @@
 
     <div class="home-title">CODE QUEST</div>
 
-    <div class="home-mid map" id="map"></div>
+    <div id="map" class="map" aria-label="Quest map"></div>
     <div id="play-note" class="hidden"></div>
 
     <div class="side-col left">
       <button id="dp-btn" class="side-btn round dp" aria-label="Daily puzzle"><span>📅</span><small>DAILY</small><i class="ready-dot">!</i></button>
-      <button id="race-btn" class="side-btn round race" aria-label="Race a friend"><span>⚔️</span><small>RACE</small></button>
+      <button id="race-btn" class="side-btn round race" aria-label="Race friends"><span>⚔️</span><small>RACE</small><i class="ready-dot">!</i></button>
+      <button id="friends-btn" class="side-btn round friends" aria-label="Friends"><span>👥</span><small>FRIENDS</small><i class="ready-dot">!</i></button>
     </div>
     <div class="side-col right">
       <button id="chest-btn" class="side-btn round chest" aria-label="Star chest"><span>🧰</span><b class="chest-meter"><i id="chest-fill"></i></b><small>CHEST</small><i class="ready-dot">!</i></button>
@@ -118,7 +119,7 @@
       <div class="clue-head">
         <span class="label">THE CODE</span>
         <button id="hint-btn">💡 HINT</button>
-        <button id="elim-btn" aria-label="Eliminate">🧹</button>
+        <button id="elim-btn" aria-label="Eliminate"><i class="wand"></i></button>
       </div>
       <div id="code"></div>
     </section>
@@ -158,6 +159,7 @@
       <div id="shop-have"></div>
       <div id="shop-short"></div>
       <button id="shop-buy" class="big-btn">BUY 3 HINTS · 700 <i class="coin"></i></button>
+      <button id="shop-more" class="wide-btn more-coins hidden"><i class="coin"></i> BUY MORE COINS</button>
       <button id="shop-close" class="link-btn">NOT NOW</button>
     </div>
   </div>
@@ -165,11 +167,12 @@
   <!-- eliminate -->
   <div id="elim-modal" class="modal hidden">
     <div class="card">
-      <div class="m-big">🧹</div>
+      <div class="m-big"><i class="wand"></i></div>
       <div class="sheet-title">ELIMINATE</div>
       <div class="shop-text">Removes 3 digits that are not in the code from the keypad.</div>
       <div id="el-have"></div>
       <button id="el-use" class="big-btn">USE</button>
+      <button id="el-more" class="wide-btn more-coins hidden"><i class="coin"></i> BUY MORE COINS</button>
       <button id="el-close" class="link-btn">NOT NOW</button>
     </div>
   </div>
@@ -192,6 +195,7 @@
       <div class="sheet-title" id="ex-title">EXTRA TRY</div>
       <button id="ex-ad" class="big-btn green">🎬 WATCH AD</button>
       <button id="ex-coins" class="big-btn">USE 100 <i class="coin"></i></button>
+      <button id="ex-more" class="wide-btn more-coins hidden"><i class="coin"></i> BUY MORE COINS</button>
       <button id="ex-close" class="link-btn">NOT NOW</button>
     </div>
   </div>
@@ -309,15 +313,15 @@
     </div>
   </div>
 
-  <script src="sounds.js?v=11"></script>
-  <script src="ads.js?v=11"></script>
-  <script src="account.js?v=11"></script>
-  <script src="shop.js?v=11"></script>
-  <script src="leaderboard.js?v=11"></script>
-  <script src="tour.js?v=11"></script>
-  <script src="quest.js?v=11"></script>
-  <script src="game.js?v=11"></script>
-  <script src="extras.js?v=11"></script>
-  <script src="app.js?v=11"></script>
+  <script src="sounds.js?v=13"></script>
+  <script src="ads.js?v=13"></script>
+  <script src="account.js?v=13"></script>
+  <script src="shop.js?v=13"></script>
+  <script src="leaderboard.js?v=13"></script>
+  <script src="tour.js?v=13"></script>
+  <script src="quest.js?v=13"></script>
+  <script src="game.js?v=13"></script>
+  <script src="extras.js?v=13"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

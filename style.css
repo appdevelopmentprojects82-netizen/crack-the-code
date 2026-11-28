@@ -717,3 +717,60 @@ body[data-skin] #keypad #enter { background: var(--accent); color: #111; }
 .rank-tabs button.on { background: linear-gradient(#ffe27a, #e3a316); color: #3b2304; }
 #x-modal, #elim-modal { z-index: 23; }
 body[data-skin] #keypad #enter:disabled { background: rgba(255, 216, 74, .3); color: rgba(0,0,0,.5); }
+
+/* ============================ UPDATE 5: CINEMATIC MAP ============================ */
+#home { background: #0b0d12; max-width: none; padding-bottom: calc(86px + env(safe-area-inset-bottom)); overflow: hidden; }
+#home > header, #home > .home-title { position: relative; z-index: 4; width: 100%; max-width: 480px; margin-left: auto; margin-right: auto; }
+#home .home-title { text-shadow: 0 2px 0 #c18c12, 0 4px 0 #8c5e08, 0 6px 0 #5a3410, 0 10px 18px rgba(0,0,0,.9); }
+#map { position: absolute; inset: 0; z-index: 0; overflow: hidden; touch-action: none; user-select: none; }
+#map::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: radial-gradient(ellipse 75% 60% at 50% 50%, transparent 55%, rgba(0,0,0,.55) 100%),
+              linear-gradient(rgba(0,0,0,.55), transparent 22%, transparent 80%, rgba(0,0,0,.6)); }
+.map-back { position: absolute; inset: -40px; background-position: center; background-size: cover; filter: blur(18px) brightness(.5) saturate(1.1); }
+.map-strip { position: absolute; left: 0; top: 0; will-change: transform; z-index: 1; }
+.map-tile { position: absolute; left: 0; width: 100%; pointer-events: none; -webkit-user-drag: none; }
+.map-tile.flip { transform: scaleX(-1); }
+.map-dots { position: absolute; left: 0; overflow: visible; pointer-events: none; }
+.dot-done { fill: #ffe9a6; stroke: #7a4a05; stroke-width: 1.4; filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
+.dot-next { fill: rgba(0,0,0,.15); stroke: #fff; stroke-width: 2; filter: drop-shadow(0 1px 1px rgba(0,0,0,.7)); }
+#map .map-node { width: 36px; height: 36px; font-size: 14px; }
+#map .map-node.done { width: 32px; height: 32px; font-size: 12px; border-width: 2px; }
+#map .map-node.locked { background: radial-gradient(circle at 35% 30%, #fffaf0, #e8dcc2 55%, #b9a57e); color: #3b2a14; border: 2px solid #fff;
+  box-shadow: 0 3px 0 rgba(59,42,20,.8), 0 5px 10px rgba(0,0,0,.5); }
+#map .map-node.boss { width: 44px; height: 44px; }
+#map .map-node.locked.boss { background: radial-gradient(circle at 35% 30%, #f3d2ff, #a35be0 60%, #5a1f8e); color: #fff; border-color: #ffd84a; }
+#map .map-node i { width: 22px; height: 22px; font-size: 12px; top: -10px; right: -12px; }
+#map .map-node.boss i { top: -18px; right: auto; font-size: 18px; }
+#map #play-btn { width: 108px; height: 108px; z-index: 5; box-shadow: 0 0 0 6px rgba(255,216,74,.35), 0 0 40px rgba(255,216,74,.55), 0 10px 0 #4a2f06, 0 18px 30px rgba(0,0,0,.6); }
+#map #play-btn.arrive { animation: arrive 1.9s ease-out; }
+@keyframes arrive { 0%, 70% { transform: translate(-50%, -50%) scale(.6); } 85% { transform: translate(-50%, -50%) scale(1.12); } 100% { transform: translate(-50%, -50%) scale(1); } }
+
+/* ---- eliminate: magic wand icon ---- */
+.wand { display: inline-block; width: 1.2em; height: 1.2em; vertical-align: -0.25em; font-style: normal;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='s' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236b3fa0'/%3E%3Cstop offset='1' stop-color='%232a1245'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='3' y='17' width='22' height='5' rx='2.5' transform='rotate(-45 14 19.5)' fill='url(%23s)' stroke='%23ffd84a' stroke-width='1.2'/%3E%3Crect x='17.5' y='9' width='6' height='5' rx='1.5' transform='rotate(-45 20.5 11.5)' fill='%23fff3b0'/%3E%3Cpath d='M25 2l1.3 3.2L29.5 6.5l-3.2 1.3L25 11l-1.3-3.2L20.5 6.5l3.2-1.3z' fill='%23ffd84a'/%3E%3Cpath d='M29 12l.7 1.6 1.6.7-1.6.7L29 16.6l-.7-1.6-1.6-.7 1.6-.7z' fill='%23fff'/%3E%3Cpath d='M17 2.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z' fill='%23fff'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)); }
+.m-big .wand { width: 64px; height: 64px; vertical-align: middle; }
+#elim-btn .wand { width: 20px; height: 20px; vertical-align: -5px; }
+.more-coins { background: linear-gradient(#ffe27a, #e3a316); color: #3b2304; border: 0; margin-top: 6px; }
+
+/* ---- friends ---- */
+.side-btn.friends { background: linear-gradient(#4fd1c5, #1f8f86); box-shadow: 0 4px 0 #0f5e58, 0 6px 12px rgba(0,0,0,.5); }
+.fr-box { text-align: left; max-height: 60dvh; overflow-y: auto; padding: 2px; }
+.fr-add { display: flex; gap: 8px; }
+#fr-name { flex: 1; min-width: 0; font: inherit; font-size: 16px; font-weight: 800; color: var(--text); background: rgba(255,255,255,.07);
+  border: 2px solid var(--line); border-radius: 12px; padding: 10px; user-select: text; -webkit-user-select: text; }
+#fr-name:focus { outline: none; border-color: var(--accent); }
+.fr-go { background: linear-gradient(#3fd27a, #1f9a4f); color: #fff; font-weight: 900; border-radius: 12px; padding: 0 16px; }
+.fr-msg { min-height: 18px; font-size: 13px; font-weight: 800; color: var(--accent); margin: 6px 0 4px; }
+.fr-inbox { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.fr-msgrow { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: rgba(255,216,74,.12); border: 1px solid rgba(255,216,74,.5); }
+.fr-msgrow .pfp { width: 32px; height: 32px; border-width: 2px; box-shadow: none; } .fr-msgrow .pfp .fig { font-size: 18px; }
+.fr-text { flex: 1; font-size: 13px; font-weight: 800; }
+.fr-act { background: linear-gradient(#3fd27a, #1f9a4f); color: #fff; font-weight: 900; font-size: 12px; border-radius: 10px; padding: 7px 10px; white-space: nowrap; }
+.fr-x { background: none; color: #ff9a9a; font-weight: 900; font-size: 16px; padding: 0 4px 0 8px; }
+.rank-row.tap { cursor: pointer; }
+.rank-row.pick { cursor: pointer; }
+.rank-row.pick::after { content: ""; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--muted); flex: 0 0 auto; margin-left: 6px; }
+.rank-row.pick.on { border-color: var(--hit); background: rgba(37,196,95,.18); }
+.rank-row.pick.on::after { background: var(--hit); border-color: var(--hit); content: "✓"; color: #fff; font-weight: 900; font-size: 14px; text-align: center; line-height: 18px; }
+.pcard { padding-top: 4px; }

@@ -72,90 +72,164 @@ const Quest = (function () {
   }
 
   // ---------------- the quest map on the home page ----------------
-  // a winding path: finished levels below, the next level big, locked ones above
-  function drawMap(box, level, onPlay) {
-    const from = Math.max(1, level - 5), to = level + 12;
-    const STEP = 92;                                         // px between levels
-    const items = [];
-    for (let L = to; L >= from; L--) items.push(L);
+  // One picture per half world (10 levels each): art/world/1a.jpg, 1b.jpg ... 8b.jpg.
+  // road = the middle of the road from the bottom of the picture to the top
+  // (x, y as parts of the width / height). stop = the point where the road ends
+  // in the picture (bubbles are only placed up to there).
+  // A picture that doesn't exist yet uses its "a" picture flipped left-right.
+  const MAP_ART = [
+    { a: [[.48,.97],[.47,.88],[.49,.80],[.51,.75],[.55,.70],[.62,.65],[.68,.60],[.72,.55],[.73,.50],[.68,.45],[.53,.40],[.42,.35],[.33,.30],[.30,.25],[.35,.20],[.43,.15],[.50,.10],[.53,.03]] },
+    { a: [[.62,.97],[.62,.88],[.61,.80],[.53,.75],[.39,.70],[.25,.65],[.19,.60],[.24,.55],[.42,.50],[.62,.465],[.76,.43],[.78,.40],[.68,.365],[.45,.345],[.27,.325],[.20,.29],[.25,.24],[.38,.20],[.50,.15],[.57,.10],[.60,.03]] },
+    { a: [[.52,.97],[.52,.88],[.50,.80],[.47,.75],[.40,.70],[.30,.65],[.22,.60],[.17,.55],[.24,.50],[.42,.46],[.60,.43],[.72,.40],[.76,.35],[.72,.30],[.62,.25],[.53,.20],[.49,.15],[.48,.08],[.48,.03]] },
+    { a: [[.57,.97],[.57,.88],[.52,.80],[.46,.75],[.39,.70],[.32,.65],[.31,.60],[.33,.55],[.45,.50],[.60,.465],[.72,.43],[.76,.38],[.73,.32],[.62,.26],[.47,.21],[.41,.175],[.47,.14],[.55,.11],[.58,.06]] },
+    { a: [[.51,.95],[.51,.88],[.50,.80],[.46,.75],[.36,.70],[.29,.65],[.27,.60],[.34,.565],[.48,.54],[.63,.51],[.73,.46],[.72,.40],[.60,.36],[.42,.34],[.33,.30],[.37,.25],[.47,.20],[.50,.14],[.50,.06]] },
+    { a: [[.50,.95],[.50,.92],[.49,.82],[.45,.72],[.39,.64],[.37,.58],[.42,.52],[.50,.475],[.58,.44],[.63,.41],[.63,.38],[.57,.355],[.47,.335],[.40,.315],[.42,.20],[.43,.08]], aStop: 13 },
+    { a: [[.44,.95],[.44,.92],[.43,.85],[.40,.80],[.35,.75],[.26,.70],[.19,.66],[.20,.62],[.33,.585],[.50,.565],[.66,.54],[.70,.51],[.62,.465],[.50,.43],[.43,.39],[.42,.35],[.35,.32],[.31,.29],[.38,.26],[.50,.255],[.57,.27],[.58,.15],[.58,.05]], aStop: 20 },
+    { a: [[.33,.96],[.35,.90],[.38,.85],[.44,.80],[.55,.75],[.67,.70],[.75,.65],[.74,.60],[.62,.55],[.45,.50],[.30,.45],[.19,.40],[.16,.35],[.22,.30],[.40,.25],[.55,.20],[.63,.15],[.66,.10],[.66,.04]] }
+  ];
+  // when you add a "b" picture, give its road here, e.g. MAP_ART[0].b = [[.5,.97], ... ];
+  const MAP_LEVELS_PER_PICTURE = 10;
+  const MAP_ZOOM = 1.3;             // the map is drawn this many times the screen width
+  const ART_W = 900, ART_H = 1612;  // size of the pictures in art/world/
+  const DOT_GAP = 15;               // px between the little dots on the road
+
+  const missing = {};               // pictures that failed to load -> use the flipped "a"
+  function tileInfo(k) {
+    const w = Math.floor(k / 2) % MAP_ART.length, half = k % 2 ? 'b' : 'a';
+    const art = MAP_ART[w];
+    const own = art[half] && !missing[(w + 1) + half];
+    const flip = !own;                                         // a "b" without its own picture
+    const road = (own ? art[half] : art.a).map(function (p) { return [flip ? 1 - p[0] : p[0], p[1]]; });
+    const stop = own ? (art[half + 'Stop'] || road.length - 1) : (art.aStop || road.length - 1);
+    return { src: 'art/world/' + (w + 1) + (own ? half : 'a') + '.jpg', flip: flip, road: road, stop: stop, world: w };
+  }
+  // smooth the traced points (Catmull-Rom) into many small steps
+  function smooth(pts) {
+    const out = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+      for (let t = 0; t < 1; t += 0.1) {
+        const t2 = t * t, t3 = t2 * t;
+        out.push([0, 1].map(function (j) {
+          return 0.5 * ((2 * p1[j]) + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3);
+        }));
+      }
+    }
+    out.push(pts[pts.length - 1]);
+    return out;
+  }
+  function lengths(pts) { const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return L; }
+  function at(pts, L, d) {                                    // point at distance d along pts
+    let i = 1;
+    while (i < L.length - 1 && L[i] < d) i++;
+    const f = (d - L[i - 1]) / ((L[i] - L[i - 1]) || 1);
+    return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * f, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * f];
+  }
+
+  let mapState = null;               // what is drawn now (to move the camera smoothly)
+  // draws the map so the next level sits in the middle of the screen.
+  // from = the level the camera was on before (it glides from there)
+  function drawMap(box, level, onPlay, from) {
+    const S = box.clientWidth || window.innerWidth, SH = box.clientHeight || window.innerHeight;
+    const D = S * MAP_ZOOM, TH = D * ART_H / ART_W;
+    const k0 = Math.floor((level - 1) / MAP_LEVELS_PER_PICTURE);
+    const first = Math.max(0, k0 - 1), last = k0 + 2;
     box.innerHTML = '';
-    const inner = document.createElement('div');
-    inner.className = 'map-inner';
-    const H = items.length * STEP + 140;
-    inner.style.height = H + 'px';
-    box.appendChild(inner);
-    const pts = [];
-    const yOf = function (k) { return 70 + k * STEP; };
-    const xOf = function (L) { return 50 + 19 * Math.sin(L * 0.95); };   // % across
+    const back = document.createElement('div'); back.className = 'map-back';
+    back.style.backgroundImage = 'url("' + tileInfo(k0).src + '")';
+    box.appendChild(back);
+    const strip = document.createElement('div'); strip.className = 'map-strip';
+    strip.style.width = D + 'px';
+    box.appendChild(strip);
 
-    // world colour bands + banners
-    let bandStart = 0;
-    items.forEach(function (L, k) {
-      const startsWorld = (L - 1) % WORLD_LEVELS === 0;
-      const endOfList = k === items.length - 1;
-      if (startsWorld || endOfList) {
-        const w = world(L);
-        const band = document.createElement('div');
-        band.className = 'map-band';
-        band.style.top = (k === 0 ? 0 : yOf(bandStart) - STEP / 2) + 'px';
-        band.style.height = (yOf(k) + STEP / 2 - (k === 0 ? 0 : yOf(bandStart) - STEP / 2)) + 'px';
-        band.style.setProperty('--band', w.band);
-        inner.appendChild(band);
-        bandStart = k + 1;
+    // pictures, and one long road through all of them (strip coordinates: y grows downwards, tile k sits above tile k-1)
+    let path = [];
+    const nodes = {};                                         // level -> [x, y]
+    for (let k = first; k <= last; k++) {
+      const t = tileInfo(k);
+      const top = -(k + 1) * TH;
+      const img = document.createElement('img');
+      img.className = 'map-tile' + (t.flip ? ' flip' : '');
+      img.src = t.src; img.alt = ''; img.draggable = false;
+      img.style.top = top + 'px'; img.style.height = TH + 'px';
+      img.onerror = function () { const key = (t.world + 1) + (k % 2 ? 'b' : 'a'); if (!missing[key]) { missing[key] = true; } };
+      strip.appendChild(img);
+      const pts = smooth(t.road).map(function (p) { return [p[0] * D, top + p[1] * TH]; });
+      // bubbles: evenly along the road part of this picture
+      const stopAt = smooth(t.road.slice(0, t.stop + 1)).length - 1;
+      const roadPart = pts.slice(0, stopAt + 1), L = lengths(roadPart), total = L[L.length - 1];
+      for (let i = 0; i < MAP_LEVELS_PER_PICTURE; i++) {
+        nodes[k * MAP_LEVELS_PER_PICTURE + i + 1] = at(roadPart, L, total * (0.06 + 0.88 * i / (MAP_LEVELS_PER_PICTURE - 1)));
       }
-      if (startsWorld) {
-        const w = world(L);
-        const b = document.createElement('div');
-        b.className = 'map-banner';
-        b.style.top = (yOf(k) + 44) + 'px';
-        b.textContent = w.icon + ' ' + w.title.toUpperCase();
-        inner.appendChild(b);
+      path = path.concat(pts);
+    }
+    // little dots between the bubbles: solid behind the next level, hollow ahead of it
+    const PL = lengths(path);
+    function distOf(p) {                                     // where a bubble lies along the road
+      let best = 0, bd = 1e9;
+      for (let i = 0; i < path.length; i++) { const d = Math.hypot(path[i][0] - p[0], path[i][1] - p[1]); if (d < bd) { bd = d; best = i; } }
+      return PL[best];
+    }
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'map-dots');
+    const minY = -(last + 1) * TH, maxY = -first * TH;
+    svg.setAttribute('viewBox', '0 ' + minY + ' ' + D + ' ' + (maxY - minY));
+    svg.style.top = minY + 'px'; svg.style.height = (maxY - minY) + 'px'; svg.style.width = D + 'px';
+    const levels = Object.keys(nodes).map(Number).sort(function (a, b) { return a - b; });
+    const nd = {}; levels.forEach(function (L) { nd[L] = distOf(nodes[L]); });
+    for (let j = 0; j < levels.length - 1; j++) {
+      const A = levels[j], B = levels[j + 1];
+      const behind = B <= level;
+      const r1 = A === level ? 52 : 22, r2 = B === level ? 52 : 22;         // keep the dots off the bubbles
+      for (let d = nd[A] + r1 + DOT_GAP / 2; d < nd[B] - r2; d += DOT_GAP) {
+        const p = at(path, PL, d);
+        const c = document.createElementNS(svgNS, 'circle');
+        c.setAttribute('cx', p[0]); c.setAttribute('cy', p[1]); c.setAttribute('r', behind ? 4.2 : 3.6);
+        c.setAttribute('class', behind ? 'dot-done' : 'dot-next');
+        svg.appendChild(c);
       }
-    });
-    // the dotted path
-    items.forEach(function (L, k) { pts.push([xOf(L), yOf(k)]); });
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'map-path');
-    svg.setAttribute('viewBox', '0 0 100 ' + H);
-    svg.setAttribute('preserveAspectRatio', 'none');
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    let d = '';
-    pts.forEach(function (p, i) {
-      if (!i) d += 'M' + p[0] + ' ' + p[1];
-      else { const q = pts[i - 1], my = (q[1] + p[1]) / 2; d += ' C' + q[0] + ' ' + my + ' ' + p[0] + ' ' + my + ' ' + p[0] + ' ' + p[1]; }
-    });
-    path.setAttribute('d', d);
-    svg.appendChild(path);
-    inner.appendChild(svg);
+    }
+    strip.appendChild(svg);
 
-    // the level stops
-    let current = null;
-    items.forEach(function (L, k) {
-      const p = plan(L);
+    // the bubbles
+    levels.forEach(function (L) {
+      const p = nodes[L], pl = plan(L);
       const n = document.createElement(L === level ? 'button' : 'div');
-      n.style.left = xOf(L) + '%';
-      n.style.top = yOf(k) + 'px';
+      n.style.left = p[0] + 'px'; n.style.top = p[1] + 'px';
       if (L === level) {
-        n.className = 'map-node now' + (p.boss ? ' boss' : '');
+        n.className = 'map-node now' + (pl.boss ? ' boss' : '');
         n.id = 'play-btn';
         n.setAttribute('aria-label', 'Play level ' + L);
         n.innerHTML = '<span class="plaque-small"></span><span id="play-level"></span><span class="plaque-play">PLAY</span>';
-        n.children[0].textContent = p.boss ? '👑 BOSS' : 'LEVEL';
+        n.children[0].textContent = pl.boss ? '👑 BOSS' : 'LEVEL';
         n.children[1].textContent = L;
         n.children[1].className = String(L).length >= 5 ? 'xlong' : String(L).length >= 4 ? 'long' : '';
         n.onclick = onPlay;
-        current = n;
       } else {
-        n.className = 'map-node ' + (L < level ? 'done' : 'locked') + (p.boss ? ' boss' : '');
+        n.className = 'map-node ' + (L < level ? 'done' : 'locked') + (pl.boss ? ' boss' : '');
         const num = document.createElement('b'); num.textContent = L; n.appendChild(num);
-        const tag = p.boss ? '👑' : p.obstacle ? OBSTACLE_ICONS[p.obstacle] : '';
-        if (tag) { const t = document.createElement('i'); t.textContent = tag; n.appendChild(t); }
-        if (L < level) { const ok = document.createElement('em'); ok.textContent = '✓'; n.appendChild(ok); }
+        const tag = pl.boss ? '👑' : pl.obstacle ? OBSTACLE_ICONS[pl.obstacle] : '';
+        if (tag && L > level) { const t = document.createElement('i'); t.textContent = tag; n.appendChild(t); }
       }
-      inner.appendChild(n);
+      strip.appendChild(n);
     });
-    // show the next level a little below the middle
-    if (current) box.scrollTop = Math.max(0, parseFloat(current.style.top) - box.clientHeight * 0.55);
+
+    // the camera: the next level in the exact middle of the screen
+    function place(L, animate) {
+      const p = nodes[L] || nodes[level];
+      strip.style.transition = animate ? 'transform 1.4s cubic-bezier(.45,.05,.25,1)' : 'none';
+      strip.style.transform = 'translate(' + (S / 2 - p[0]) + 'px,' + (SH / 2 - p[1]) + 'px)';
+    }
+    const start = from && from !== level && nodes[from] ? from : level;
+    place(start, false);
+    if (start !== level) {
+      void strip.offsetWidth;
+      requestAnimationFrame(function () { place(level, true); });
+      const btn = strip.querySelector('#play-btn');
+      if (btn) { btn.classList.add('arrive'); }
+    }
+    mapState = { level: level };
   }
 
   return { world: world, plan: plan, isBoss: isBoss, drawMap: drawMap, WORLDS: WORLDS };
