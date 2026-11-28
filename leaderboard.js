@@ -13,7 +13,7 @@
    ========================================================================== */
 'use strict';
 
-const LEADERBOARD_URL = '';
+const LEADERBOARD_URL = 'https://code-quest-bf804-default-rtdb.firebaseio.com';
 const LEADERBOARD_SIZE = 100;     // how many players the list shows
 
 const Board = (function () {
