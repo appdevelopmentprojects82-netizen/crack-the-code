@@ -128,12 +128,14 @@ const Game = (function () {
     c.elim = c.elim || [];
     if (!c.base) { c.base = MAX_TRIES; c.extras = true; }
   }
-  function randomName() {
+  // rnd = a random number maker (the computer players use a fixed one so their names never change)
+  function randomName(rnd) {
+    const r = rnd || Math.random;
     const a = ['Swift', 'Silent', 'Clever', 'Brave', 'Lucky', 'Sneaky', 'Golden', 'Shadow', 'Rapid', 'Mystic', 'Cosmic', 'Wild',
                'Sharp', 'Bold', 'Frosty', 'Turbo', 'Witty', 'Iron', 'Neon', 'Royal'];
     const b = ['Fox', 'Owl', 'Tiger', 'Panda', 'Wolf', 'Falcon', 'Otter', 'Raven', 'Lynx', 'Cobra', 'Koala', 'Shark', 'Phoenix',
                'Ninja', 'Wizard', 'Rider', 'Hunter', 'Spark', 'Comet', 'Cracker'];
-    return pick(a) + pick(b) + Math.floor(100 + Math.random() * 900);
+    return a[Math.floor(r() * a.length)] + b[Math.floor(r() * b.length)] + Math.floor(100 + r() * 900);
   }
   function store() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* private mode */ } }
   function stat(k, n) { save.stats[k] = (save.stats[k] || 0) + (n === undefined ? 1 : n); }
@@ -717,7 +719,7 @@ const Game = (function () {
       line: won ? 'Cracked in ' + n + ' ' + (n === 1 ? 'try' : 'tries') + ' · ' + clockText(c.ms) : 'The code was ' + c.code.join(''),
       coins: won && isDaily ? '+' + DAILY_COINS + ' 🪙' : '',
       button: isDaily ? '🏆 SEE RANKING' : '⚔️ SEE RESULT',
-      action: function () { hideModal(); App.home(); if (isDaily) Extras.dailyBoard(); else Extras.raceResult(id); },
+      action: function () { hideModal(); App.home(function () { if (isDaily) Extras.dailyBoard(); else Extras.raceResult(id); }); },
       button2: 'HOME', action2: function () { App.home(); }
     });
   }

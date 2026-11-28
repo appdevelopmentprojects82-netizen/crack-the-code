@@ -36,6 +36,9 @@ const ACHIEVEMENTS = [
   { id: 'lvl200',  icon: '🐉', title: 'Legend',           text: 'Reach level 200',                           goal: 200, coins: 1000, value: function (s) { return s.level; } }
 ];
 // KEYPAD & CODE BOX STYLES (unlocked by the achievement that names them)
+// RACE A RANDOM PLAYER: real players invited, and how long to wait before a computer player joins instead
+const RACE_RANDOM_INVITES = 5;
+const RACE_MATCH_SECONDS = 10;
 const SKINS = [
   { id: 'classic', name: 'Classic' }, { id: 'forest', name: 'Forest' }, { id: 'frost', name: 'Frost' },
   { id: 'gold', name: 'Gold' }, { id: 'neon', name: 'Neon' }, { id: 'royal', name: 'Royal' }
@@ -58,9 +61,10 @@ const Extras = (function () {
 
   // ---------------- one window for all of these ----------------
   // sheet({ icon, title, body: element, main: { text, action, disabled, cls }, closeText })
-  let sheetTick = null;
+  let sheetTick = null, sheetOnClose = null;
   function sheet(o) {
     clearInterval(sheetTick); sheetTick = null;
+    sheetOnClose = o.onClose || null;
     $('x-icon').textContent = o.icon || '';
     $('x-title').textContent = o.title || '';
     const body = $('x-body');
@@ -451,7 +455,104 @@ const Extras = (function () {
         });
       });
     }
-    sheet({ icon: '⚔️', title: 'RACE FRIENDS', body: body, main: { text: '＋ NEW RACE', cls: 'green', action: pickFriends } });
+    // two ways to race
+    const pick = el('div', 'race-pick');
+    const fr = el('button', 'race-opt friend');
+    fr.appendChild(el('span', 'ro-i', '👥')); fr.appendChild(el('b', '', 'RACE A FRIEND')); fr.appendChild(el('small', '', 'Pick from your friends'));
+    fr.onclick = pickFriends;
+    const rn = el('button', 'race-opt random');
+    rn.appendChild(el('span', 'ro-i', '🎲')); rn.appendChild(el('b', '', 'RANDOM PLAYER')); rn.appendChild(el('small', '', 'Find an opponent now'));
+    rn.onclick = randomMatch;
+    pick.appendChild(fr); pick.appendChild(rn);
+    body.insertBefore(pick, body.children[1]);
+    sheet({ icon: '⚔️', title: 'RACE', body: body });
+  }
+
+  // ---- race a random player: invite a few real players; if nobody joins in RACE_MATCH_SECONDS, a computer player does ----
+  function randomMatch() {
+    const s = S();
+    if (s.coins < Game.RACE_FEE) { notEnough(); return; }
+    const id = newId();
+    const race = { by: me(), at: Date.now(), day: Game.utcDay(), fee: Game.RACE_FEE, max: 2, invited: [], random: true, players: {} };
+    race.players[s.pid] = { name: s.name, avatar: s.avatar, paid: true, done: false };
+    let over = false, invited = [], poll = null;
+    const body = el('div', 'race-box');
+    const spin = el('div', 'match-spin');
+    const mePic = el('div', 'pfp'); App.avatar(mePic, s.avatar);
+    const vs = el('b', 'match-vs', 'VS');
+    const them = el('div', 'pfp match-who'); them.appendChild(el('span', 'fig', '❔'));
+    spin.appendChild(mePic); spin.appendChild(vs); spin.appendChild(them);
+    body.appendChild(spin);
+    const msg = el('div', 'race-step', 'Finding a player…');
+    body.appendChild(msg);
+    body.appendChild(el('div', 'dp-chips', '🎟️ ' + Game.RACE_FEE + ' 🪙 ENTRY   🏆 WINNER GETS ' + (Game.RACE_FEE * 2) + ' 🪙'));
+    // shuffle faces while searching
+    const faces = Board.bots();
+    const shuffle = setInterval(function () { if (over) return; App.avatar(them, faces[Math.floor(Math.random() * faces.length)].avatar); them.classList.add('match-who'); }, 220);
+    const started = Date.now();
+    function cancel() {
+      if (over) return;
+      over = true; clearInterval(shuffle); clearInterval(poll);
+      invited.forEach(function (pid) { Board.unsend(pid, 'r_' + id); });
+      Board.raceCancel(id);
+      s.coins += Game.RACE_FEE; Game.persist(); App.update();
+      Game.toast('Search cancelled — ' + Game.RACE_FEE + ' 🪙 back');
+    }
+    sheet({ icon: '🎲', title: 'RANDOM PLAYER', body: body, onClose: cancel,
+      tick: function () { const left = Math.max(0, Math.ceil(RACE_MATCH_SECONDS - (Date.now() - started) / 1000)); if (!over) msg.textContent = 'Finding a player… ' + left; } });
+    $('x-main').classList.add('hidden');
+    Board.raceCreate(id, race, function (ok) {
+      if (over) return;
+      if (!ok) { over = true; clearInterval(shuffle); closeSheet(); Game.toast('Could not start the race — check your internet'); return; }
+      s.coins -= Game.RACE_FEE; Game.persist(); App.update();
+      remember(id);
+      // send the invite to a few real players who played lately
+      Board.active(3, function (list) {
+        if (over) return;
+        list = list.filter(function (p) { return p.id !== s.pid; }).sort(function () { return Math.random() - 0.5; }).slice(0, RACE_RANDOM_INVITES);
+        invited = list.map(function (p) { return p.id; });
+        invited.forEach(function (pid) { Board.send(pid, 'r_' + id, { type: 'race', race: id, day: race.day, from: me(), at: Date.now() }); });
+      });
+      poll = setInterval(function () {
+        if (over) return;
+        Board.raceGet(id, function (r) {
+          if (over || !r) return;
+          const other = r.players.filter(function (p) { return p.id !== s.pid; })[0];
+          if (other) { matched(other); return; }
+          if (Date.now() - started >= RACE_MATCH_SECONDS * 1000) addComputer();
+        });
+      }, 1000);
+    });
+    // nobody came: a computer player of normal skill takes the place
+    function addComputer() {
+      if (over) return;
+      const b = faces[Math.floor(Math.random() * faces.length)];
+      const res = computerResult();
+      Board.raceSubmit(id, b.id, { name: b.name, avatar: b.avatar, paid: true, done: true, tries: res.tries, ms: res.ms, fin: Date.now() + res.ms }, function (ok) {
+        if (!ok) return;                                     // try again on the next poll
+        matched({ name: b.name, avatar: b.avatar });
+      });
+    }
+    function matched(other) {
+      if (over) return;
+      over = true; clearInterval(shuffle); clearInterval(poll); clearInterval(sheetTick);
+      invited.forEach(function (pid) { Board.unsend(pid, 'r_' + id); });
+      App.avatar(them, other.avatar); them.classList.add('found');
+      Sounds.play('hint'); App.buzz([30, 40, 30]);
+      msg.textContent = '⚔️ ' + other.name + ' accepted!';
+      sheetOnClose = null;
+      const m = $('x-main');
+      m.classList.remove('hidden'); m.disabled = false; m.className = 'big-btn green';
+      coinText(m, '▶ PLAY');
+      m.onclick = function () { closeSheet(); App.playMode('race', id); };
+    }
+  }
+  // how a normal player does on a race code (tries; 99 = not cracked) and how long it takes
+  function computerResult() {
+    const r = Math.random();
+    const tries = r < 0.06 ? 2 : r < 0.3 ? 3 : r < 0.66 ? 4 : r < 0.87 ? 5 : r < 0.95 ? 6 : 99;
+    const ms = Math.round((25 + (tries === 99 ? 6 : tries) * (12 + Math.random() * 14) + Math.random() * 30) * 1000);
+    return { tries: tries, ms: ms };
   }
   // choose who to invite (or all friends at once)
   function pickFriends() {
@@ -591,7 +692,7 @@ const Extras = (function () {
         body.appendChild(time);
         if (!st.mine) main = { text: 'JOIN · ' + (race.fee || 0) + ' 🪙', cls: 'green', action: function () { joinRace(id); } };
         else if (!st.mine.done) main = { text: '▶ PLAY MY TURN', cls: 'green', action: function () { closeSheet(); App.playMode('race', id); } };
-        else main = { text: '📤 INVITE MORE', action: function () { shareRace(id); } };
+        else if (race.players.length < (race.max || Game.RACE_MAX)) main = { text: '📤 INVITE MORE', action: function () { shareRace(id); } };
       } else {
         const s = S();
         if (!s.raceWon) s.raceWon = {};
@@ -608,6 +709,12 @@ const Extras = (function () {
       }
       sheet({ icon: '⚔️', title: st.final ? 'RACE RESULT' : 'RACE', body: body, main: main,
         tick: st.final ? null : function () { time.textContent = '⏳ ENDS IN ' + fmtClock(untilUtcEnd()); } });
+      // someone is about to finish: show the result as soon as they do
+      const soon = race.players.filter(function (p) { return !p.done && p.fin > Date.now(); }).map(function (p) { return p.fin; });
+      if (!st.final && soon.length) {
+        const shown = body;
+        setTimeout(function () { if (document.body.contains(shown) && !$('x-modal').classList.contains('hidden')) raceResult(id); }, Math.min.apply(null, soon) - Date.now() + 800);
+      }
     });
   }
   // a friend opened a race link
@@ -629,16 +736,40 @@ const Extras = (function () {
     $('chest-fill').style.height = Math.min(100, s.chestStars / CHEST_STARS * 100) + '%';
     $('ach-btn').classList.toggle('ready', achReady());
   }
-  // after the loading screen: race link first, otherwise the daily streak
+  // ======================= WEEKLY PRIZES ==================================
+  // first visit of a new week: if this player was in last week's top 3, they get a prize
+  function weeklyCheck(done) {
+    const s = S(), lw = Board.lastWeekKey();
+    Board.weekRoll(s);
+    if (s.wkPaid === lw || s.pwk !== lw || !(s.pww > 0)) { done(false); return; }
+    Board.weekly('last', function (list) {
+      if (!list) { done(false); return; }                       // offline: try again next time
+      s.wkPaid = lw; Game.persist();
+      const k = list.findIndex(function (p) { return p.id === s.pid; });
+      if (k < 0 || k > 2) { done(false); return; }
+      const prize = WEEKLY_PRIZES[k];
+      const body = el('div', 'race-box');
+      body.appendChild(el('div', 'race-vs', ['🥇', '🥈', '🥉'][k] + ' You finished #' + (k + 1) + ' last week!'));
+      body.appendChild(el('div', 'dp-chips', '+' + s.pww + ' LEVELS IN ONE WEEK'));
+      sheet({ icon: '🏆', title: 'WEEKLY CHAMPION', body: body,
+        main: { text: 'CLAIM REWARD · ' + prize.toLocaleString() + ' 🪙', action: function () {
+          s.coins += prize; Game.persist(); closeSheet(); reward(prize); setTimeout(showStreak, 900);
+        } } });
+      done(true);
+    });
+  }
+
+  // after the loading screen: race link first, then a weekly prize, otherwise the daily streak
   function onStart() {
     applySkin();
-    if (!joinFromLink()) setTimeout(showStreak, 300);
+    if (!joinFromLink()) setTimeout(function () { weeklyCheck(function (shown) { if (!shown) showStreak(); }); }, 300);
     checkInbox(true);
     setInterval(function () { if (!document.hidden) checkInbox(false); }, 60000);
   }
 
   function init() {
-    $('x-close').onclick = closeSheet;
+    // the x: close, and tell the window if it wants to know (e.g. stop looking for a race opponent)
+    $('x-close').onclick = function () { const f = sheetOnClose; sheetOnClose = null; closeSheet(); if (f) f(); };
     $('dp-btn').onclick = dailyBoard;
     $('race-btn').onclick = openRaces;
     $('friends-btn').onclick = openFriends;

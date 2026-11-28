@@ -15,7 +15,9 @@ A phone puzzle game. Every level hides a secret code; players crack it from the 
 * **Eliminate** 🧹 for 1500 coins removes 3 wrong digits from the keypad.
 * **Daily puzzle** (same code for everyone, 6 tries, own ranking).
 * **Friends**: add by exact username or by tapping a player on the leaderboard; messages for invites.
-* **Races**: up to 10 players, 100 coins to enter, the winner takes the whole pot (ties share it). A race lasts until midnight (UTC).
+* **Races**: race a friend (up to 10 players) or a **random player**. 100 coins to enter, the winner takes the whole pot (ties share it).
+  A race lasts until midnight (UTC). For a random race a few real players get an invite; if nobody joins within 10 seconds,
+  a computer player of normal skill takes the place (`RACE_MATCH_SECONDS` in `extras.js`).
 * **Login streak** (7 days of rewards), **star chests** (every 30 stars), **achievements** that unlock keypad styles,
   and a **close call** message when a level is won on the last try.
 * Level-break ads come after the coins have been collected: after every 3rd level up to level 21, every 2nd level up to level 100, and every level after that.
@@ -35,6 +37,10 @@ A phone puzzle game. Every level hides a secret code; players crack it from the 
 * **Shop**: a box for each coin pack and remove ads, shown at -50% with the full price crossed out (`PROMO_PERCENT` in `shop.js`); free coins from ads at the bottom.
   Prices are set in US dollars in `shop.js` and shown in the player's own currency, rounded up to .49 / .99.
 * **Leaderboard**: every player, once `LEADERBOARD_URL` in `leaderboard.js` is filled in (steps at the top of that file).
+  Tabs: **All time**, **Weekly** (levels won this week; the top 3 get 10,000 / 5,000 / 2,500 coins the next time they open the game)
+  and **Today's puzzle**. 100 computer players (`BOT_COUNT`, best one at level `BOT_TOP_LEVEL` = 203) fill both boards;
+  real players push them off the bottom as more people play.
+* Pop-ups close with the white **x** in their top-left corner.
 
 ## Purchases
 Not connected yet: while `TEST_PURCHASES` is true every purchase is simulated for free (no money taken).

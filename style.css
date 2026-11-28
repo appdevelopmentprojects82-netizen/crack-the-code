@@ -774,3 +774,101 @@ body[data-skin] #keypad #enter:disabled { background: rgba(255, 216, 74, .3); co
 .rank-row.pick.on { border-color: var(--hit); background: rgba(37,196,95,.18); }
 .rank-row.pick.on::after { background: var(--hit); border-color: var(--hit); content: "✓"; color: #fff; font-weight: 900; font-size: 14px; text-align: center; line-height: 18px; }
 .pcard { padding-top: 4px; }
+
+/* ============================ UPDATE 6 ============================ */
+/* ---- pop-ups: smaller, one text size, white x in the top-left ---- */
+.card { position: relative; max-width: 320px; padding: 16px 14px 14px; border-radius: 18px; font-size: 14px; line-height: 1.4; }
+#x-modal .card { max-width: 340px; }
+.card .m-big, #m-icon { font-size: 38px; line-height: 1.1; }
+.m-big .coin, .m-big .wand { width: 46px; height: 46px; }
+.card .sheet-title, #shop-title, #help-title, #m-title { font-size: 20px; letter-spacing: 1.5px; margin: 2px 0 8px; line-height: 1.15; }
+.card .shop-text, #shop-have, #shop-short, #lm-timer, #lm-short, #m-line, #m-extra, .race-vs, .race-step, .dp-result, .race-win,
+.lad-count, .lad-reset, #dl-reset, .fr-msg, .fr-text, .chest-got, #set-note, .set-row, .dp-chips, #help ol, .card .wide-btn,
+.ach-mid b, .streak-day b, #pf-name, .card .rank-row .rn { font-size: 14px; }
+#m-stars { font-size: 28px; }
+#m-coins { font-size: 22px; margin-bottom: 10px; }
+.card .big-btn { font-size: 16px; padding: 11px; border-radius: 12px; }
+.card .wide-btn { padding: 10px; margin-bottom: 8px; }
+.card .link-btn { font-size: 14px; padding: 10px 10px 2px; }
+.card .heart.big { width: 70px; height: 64px; } .card .heart.big span { font-size: 26px; }
+.card .pfp.huge { width: 72px; height: 72px; } .card .pfp.huge .fig { font-size: 44px; }
+.card .chest { font-size: 64px; }
+.card .set-row { padding: 9px 2px; }
+/* the old close buttons are replaced by the x */
+#shop-close, #el-close, #x-close, #ex-close, #adr-close, #dl-close, #lm-close, #set-close, #nt-ok, #pf-done, #help-close { display: none !important; }
+.x-btn { position: absolute; top: 8px; left: 8px; z-index: 2; width: 32px; height: 32px; padding: 0; border-radius: 50%;
+  background: rgba(255,255,255,.1); display: flex; align-items: center; justify-content: center; }
+.x-btn svg { width: 16px; height: 16px; stroke: #fff; stroke-width: 3; stroke-linecap: round; }
+.x-btn:active { transform: scale(.9); }
+
+/* ---- home: the map fills the page, the bottom icons float on it ---- */
+#home:not(.hidden) ~ #nav { background: none; border-top: 0; box-shadow: none; padding-top: 0; }
+#home:not(.hidden) ~ #nav button:not(.on) { background: rgba(43, 26, 12, .82); color: #e9cfa8; border: 2px solid rgba(255, 216, 74, .45);
+  box-shadow: 0 4px 0 rgba(20, 10, 2, .8), 0 6px 14px rgba(0,0,0,.55); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+
+/* ---- watch videos for coins: under GOALS ---- */
+.side-btn.adv { background: linear-gradient(#3fd27a, #1f9a4f); color: #fff; box-shadow: 0 4px 0 #0f5e2e, 0 6px 12px rgba(0,0,0,.5); }
+.side-btn.adv svg { width: 28px; height: 28px; }
+.side-btn.adv .coin { position: absolute; right: -8px; bottom: -6px; width: 24px; height: 24px; margin: 0; }
+.side-btn.adv.ready { animation: breathe-btn 1.8s ease-in-out infinite; }
+
+/* ---- map bubbles: painted medallions that belong in the pictures ---- */
+#map .map-node { font-family: "Cinzel Decorative", Georgia, serif; font-weight: 900; }
+#map .map-node.locked { width: 38px; height: 38px; font-size: 14px; color: #4a2e0c; border: 3px solid #5a3a14;
+  background: radial-gradient(circle at 50% 32%, #fffaf0 0%, #f1dfb4 45%, #c9a465 80%, #9c7436 100%);
+  box-shadow: inset 0 0 0 2px #f8e4ad, inset 0 -4px 6px rgba(110, 70, 20, .45), 0 3px 0 #3b2508, 0 6px 10px rgba(0,0,0,.6);
+  text-shadow: 0 1px 0 rgba(255,255,255,.6); }
+#map .map-node.done { width: 34px; height: 34px; font-size: 13px; color: #5a3804; border: 3px solid #6e4805;
+  background: radial-gradient(circle at 40% 28%, #fffbe0 0%, #ffe27a 30%, #e3a316 70%, #a86c08 100%);
+  box-shadow: inset 0 0 0 2px #ffefa0, inset 0 -4px 6px rgba(120, 70, 0, .5), 0 3px 0 #4a2f06, 0 6px 10px rgba(0,0,0,.55);
+  text-shadow: 0 1px 0 rgba(255,255,255,.55); }
+#map .map-node.boss { width: 46px; height: 46px; font-size: 16px; }
+#map .map-node.locked.boss { color: #fff; border-color: #ffd84a;
+  background: radial-gradient(circle at 45% 30%, #f6dcff 0%, #c27ef0 35%, #7b2cbf 75%, #45136e 100%);
+  box-shadow: inset 0 0 0 2px #ffe27a, inset 0 -5px 8px rgba(40, 0, 70, .55), 0 3px 0 #2a0b45, 0 0 14px rgba(199,125,255,.7), 0 6px 10px rgba(0,0,0,.6);
+  text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+#map .map-node i { width: 20px; height: 20px; font-size: 11px; top: -9px; right: -11px; background: #fff6dc; border: 2px solid #5a3a14; }
+#map .map-node.boss i { background: none; border: 0; top: -18px; right: auto; font-size: 18px; }
+.dot-done { fill: #ffe27a; stroke: #6e4805; stroke-width: 1.6; }
+.dot-next { fill: rgba(255, 246, 220, .25); stroke: #fff6dc; stroke-width: 2; }
+
+/* ---- the PLAY bubble: smaller, the same medallion style ---- */
+#map #play-btn { width: 86px; height: 86px; border: 4px solid #5a3a10; font-family: "Cinzel Decorative", Georgia, serif; color: #4a2e0c;
+  background: radial-gradient(circle at 42% 28%, #fffbe0 0%, #ffe27a 28%, #e3a316 68%, #a86c08 100%);
+  box-shadow: inset 0 0 0 3px #ffefa0, inset 0 -8px 12px rgba(120, 60, 0, .45), 0 0 0 4px rgba(255, 216, 74, .55), 0 0 26px rgba(255, 216, 74, .6),
+              0 6px 0 #4a2f06, 0 12px 20px rgba(0,0,0,.6); }
+#map #play-btn .plaque-small { font-size: 8px; letter-spacing: 2px; margin-top: 2px; font-family: var(--font); }
+#map #play-btn #play-level { font-size: 30px; line-height: 1; }
+#map #play-btn #play-level.long { font-size: 23px; } #map #play-btn #play-level.xlong { font-size: 18px; }
+#map #play-btn .plaque-play { font-size: 12px; letter-spacing: 2px; font-family: var(--font); }
+#map #play-btn.boss { background: radial-gradient(circle at 42% 28%, #f6dcff 0%, #c27ef0 30%, #7b2cbf 70%, #45136e 100%); color: #fff; border-color: #ffd84a; }
+@keyframes breathe { 50% { box-shadow: inset 0 0 0 3px #ffefa0, inset 0 -8px 12px rgba(120, 60, 0, .45), 0 0 0 8px rgba(255, 216, 74, .3), 0 0 34px rgba(255, 216, 74, .7),
+                               0 6px 0 #4a2f06, 0 12px 20px rgba(0,0,0,.6); } }
+
+/* ---- leaderboard: 3 tabs, weekly prizes ---- */
+.rank-tabs.three { grid-template-columns: 1fr 1fr 1fr; }
+.rank-tabs.three button { font-size: 11px; padding: 9px 2px; }
+.wk-head { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 2px 0 -2px; }
+.wk-prizes { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.wk-prizes span { background: rgba(0,0,0,.45); border: 1px solid rgba(255,216,74,.5); border-radius: 99px; padding: 3px 9px;
+  font-size: 12px; font-weight: 900; color: #ffd84a; white-space: nowrap; }
+.wk-prizes .coin { width: 14px; height: 14px; }
+.wk-end { font-size: 12px; font-weight: 900; color: #fff; text-shadow: 0 1px 3px #000; letter-spacing: .5px; }
+
+/* ---- race: friend or random player ---- */
+.race-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 8px; }
+.race-opt { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px 10px; border-radius: 14px; color: #fff;
+  box-shadow: 0 4px 0 rgba(0,0,0,.45); }
+.race-opt.friend { background: linear-gradient(#4fd1c5, #1f8f86); }
+.race-opt.random { background: linear-gradient(#ff9a5a, #d1452a); }
+.race-opt .ro-i { font-size: 28px; line-height: 1.1; }
+.race-opt b { font-size: 13px; font-weight: 900; letter-spacing: .5px; }
+.race-opt small { font-size: 11px; font-weight: 700; opacity: .9; }
+.race-opt:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.45); }
+.match-spin { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 4px 0 6px; }
+.match-spin .pfp { width: 62px; height: 62px; } .match-spin .pfp .fig { font-size: 36px; }
+.match-vs { font-size: 20px; font-weight: 900; color: #ff7a5a; letter-spacing: 1px; }
+.match-who:not(.found) { animation: pulse .5s ease-in-out infinite; }
+.match-who.found { box-shadow: 0 0 0 4px #3fd27a, 0 0 18px rgba(63,210,122,.7); }
+#map .map-node b, #map #play-btn #play-level { font-family: var(--font); font-weight: 900; }
+.rank-tabs button:not(.on) { background: rgba(255,255,255,.08); color: #f3e3c8; }

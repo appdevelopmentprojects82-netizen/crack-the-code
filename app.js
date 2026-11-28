@@ -85,12 +85,18 @@ const App = (function () {
     if (name === 'home') mapLevel = 0;              // redraw the map (and scroll to the next level)
     update();
   }
-  function home() {
+  // after = something to open once the home page is showing (e.g. the daily ranking)
+  let afterHome = null;
+  function home(after) {
     closeModals();
-    if (history.state && history.state.sub) history.back();   // popstate brings us home
-    else show('home', true);
+    if (history.state && history.state.sub) { afterHome = after || null; history.back(); }   // popstate brings us home
+    else { show('home', true); if (after) after(); }
   }
-  window.addEventListener('popstate', function () { closeModals(); show('home', true); });
+  window.addEventListener('popstate', function () {
+    closeModals(); show('home', true);
+    const f = afterHome; afterHome = null;
+    if (f) f();
+  });
   function closeModals() { ['lives-modal', 'profile', 'settings', 'notice', 'daily', 'adr', 'x-modal'].forEach(function (id) { $(id).classList.add('hidden'); }); }
 
   function play() { playMode('level'); }
@@ -442,20 +448,13 @@ const App = (function () {
       stats.appendChild(d);
     });
     body.appendChild(stats);
-    const tabs = document.createElement('div'); tabs.className = 'rank-tabs';
-    [['all', '🏆 ALL TIME'], ['daily', '📅 TODAY’S PUZZLE']].forEach(function (t) {
+    const tabs = document.createElement('div'); tabs.className = 'rank-tabs three';
+    [['all', '🏆 ALL TIME'], ['week', '📆 WEEKLY'], ['daily', '📅 PUZZLE']].forEach(function (t) {
       const b = document.createElement('button'); b.textContent = t[1]; b.className = rankTab === t[0] ? 'on' : '';
       b.onclick = function () { rankTab = t[0]; buildRanks(); };
       tabs.appendChild(b);
     });
     body.appendChild(tabs);
-    if (rankTab === 'daily' && Board.on()) {
-      const box = document.createElement('div'); box.className = 'rank-list';
-      box.innerHTML = '<div class="rank-wait">LOADING…</div>';
-      body.appendChild(box);
-      Extras.dailyList(box);
-      return;
-    }
     if (!Board.on()) {
       const soon = document.createElement('div'); soon.className = 'rank-soon';
       soon.innerHTML = '<div class="m-big">🌍</div><b>WORLD RANKINGS COMING SOON</b>';
@@ -464,26 +463,55 @@ const App = (function () {
     }
     const box = document.createElement('div'); box.className = 'rank-list';
     box.innerHTML = '<div class="rank-wait">LOADING…</div>';
-    body.appendChild(box);
+    if (rankTab === 'daily') { body.appendChild(box); Extras.dailyList(box); return; }
     Board.push(s);
+    if (rankTab === 'week') {
+      // prizes for the top 3 and the time left this week
+      const head = document.createElement('div'); head.className = 'wk-head';
+      const pz = document.createElement('div'); pz.className = 'wk-prizes';
+      WEEKLY_PRIZES.forEach(function (c, k) { const b = document.createElement('span'); coinText(b, ['🥇', '🥈', '🥉'][k] + ' ' + c.toLocaleString() + ' 🪙'); pz.appendChild(b); });
+      const end = document.createElement('div'); end.className = 'wk-end';
+      const tick = function () { if (!document.body.contains(end)) { clearInterval(tm); return; } end.textContent = '⏳ ENDS IN ' + longClock(Board.weekEndsIn()); };
+      head.appendChild(pz); head.appendChild(end);
+      body.appendChild(head);
+      const tm = setInterval(tick, 1000); tick();
+      body.appendChild(box);
+      Board.weekly('this', function (list) {
+        box.innerHTML = '';
+        if (!list) { box.innerHTML = '<div class="rank-wait">OFFLINE — TRY AGAIN LATER</div>'; return; }
+        if (!list.length) { box.innerHTML = '<div class="rank-wait">WIN LEVELS TO GET ON THE BOARD!</div>'; return; }
+        const mine = list.findIndex(function (p) { return p.id === s.pid; });
+        sm.textContent = (mine >= 0 ? 'WEEK RANK #' + (mine + 1) + ' · ' : '') + '+' + (s.ww || 0) + ' LEVELS THIS WEEK';
+        list.forEach(function (p, k) { box.appendChild(rankRow(p, k, '+' + p.score + ' LV', '')); });
+      });
+      return;
+    }
+    body.appendChild(box);
     Board.load(function (top, all) {
       box.innerHTML = '';
       if (!top) { box.innerHTML = '<div class="rank-wait">OFFLINE — TRY AGAIN LATER</div>'; return; }
       const mine = (all || []).findIndex(function (p) { return p.id === s.pid; });
       if (mine >= 0) sm.textContent = 'RANK #' + (mine + 1) + ' · LEVEL ' + s.level + ' · ⭐ ' + s.stars;
-      top.forEach(function (p, k) {
-        const r = document.createElement('div');
-        r.className = 'rank-row' + (p.id === s.pid ? ' me' : '') + (k < 3 ? ' top' + (k + 1) : '');
-        const n = document.createElement('span'); n.className = 'rk'; n.textContent = k < 3 ? ['🥇', '🥈', '🥉'][k] : k + 1;
-        const pic = document.createElement('div'); pic.className = 'pfp'; avatarHTML(pic, p.avatar);
-        const nm = document.createElement('b'); nm.className = 'rn'; nm.textContent = p.name;
-        const lv = document.createElement('span'); lv.className = 'rl'; lv.textContent = 'LV ' + p.level;
-        const st = document.createElement('span'); st.className = 'rs'; st.textContent = '⭐ ' + p.stars;
-        [n, pic, nm, lv, st].forEach(function (x) { r.appendChild(x); });
-        if (p.id !== s.pid) { r.classList.add('tap'); r.onclick = function () { Extras.playerCard(p); }; }
-        box.appendChild(r);
-      });
+      top.forEach(function (p, k) { box.appendChild(rankRow(p, k, 'LV ' + p.level, '⭐ ' + p.stars)); });
     });
+  }
+  function rankRow(p, k, a, b) {
+    const s = S();
+    const r = document.createElement('div');
+    r.className = 'rank-row' + (p.id === s.pid ? ' me' : '') + (k < 3 ? ' top' + (k + 1) : '');
+    const n = document.createElement('span'); n.className = 'rk'; n.textContent = k < 3 ? ['🥇', '🥈', '🥉'][k] : k + 1;
+    const pic = document.createElement('div'); pic.className = 'pfp'; avatarHTML(pic, p.avatar);
+    const nm = document.createElement('b'); nm.className = 'rn'; nm.textContent = p.name;
+    const lv = document.createElement('span'); lv.className = 'rl'; lv.textContent = a;
+    const st = document.createElement('span'); st.className = 'rs'; st.textContent = b;
+    [n, pic, nm, lv, st].forEach(function (x) { r.appendChild(x); });
+    if (p.id !== s.pid) { r.classList.add('tap'); r.onclick = function () { Extras.playerCard(p); }; }
+    return r;
+  }
+  // 3d 4h, 5h 12m or 12:30
+  function longClock(ms) {
+    const m = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor(m / 60) % 24;
+    return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + (m % 60) + 'm' : clock(ms);
   }
 
   // ======================= LITTLE HELPERS =================================
@@ -493,7 +521,22 @@ const App = (function () {
   }
 
   // ======================= START ==========================================
+  // every pop-up closes with a white x in its top-left corner (it does what the old close button did)
+  const CLOSERS = { shop: 'shop-close', 'elim-modal': 'el-close', 'x-modal': 'x-close', 'extra-modal': 'ex-close', adr: 'adr-close',
+                    daily: 'dl-close', 'lives-modal': 'lm-close', profile: 'pf-done', settings: 'set-close', notice: 'nt-ok', help: 'help-close' };
+  function addCloseX() {
+    Object.keys(CLOSERS).forEach(function (id) {
+      const card = $(id).querySelector('.card');
+      const x = document.createElement('button');
+      x.className = 'x-btn'; x.setAttribute('aria-label', 'Close');
+      x.innerHTML = '<svg viewBox="0 0 16 16"><path d="M3 3l10 10M13 3L3 13"/></svg>';
+      x.onclick = function () { $(CLOSERS[id]).click(); };
+      card.insertBefore(x, card.firstChild);
+    });
+  }
+
   function init() {
+    addCloseX();
     document.querySelectorAll('#nav button').forEach(function (b) {
       b.onclick = function () {
         const go = b.dataset.go;
@@ -535,5 +578,7 @@ const App = (function () {
 
   return { home: home, show: show, livesModal: livesModal, livesChanged: livesChanged, buzz: buzz, update: update,
            playMode: playMode, avatar: avatarHTML, goShop: goShop,
-           onWin: function () { Board.push(S()); } };
+           longClock: longClock,
+           // a level won: count it for this week's board too
+           onWin: function () { const s = S(); Board.weekRoll(s); s.ww = (s.ww || 0) + 1; Game.persist(); Board.push(s); } };
 })();
