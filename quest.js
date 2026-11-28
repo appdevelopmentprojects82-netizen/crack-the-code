@@ -158,8 +158,10 @@ const Quest = (function () {
       // bubbles: evenly along the road part of this picture
       const stopAt = smooth(t.road.slice(0, t.stop + 1)).length - 1;
       const roadPart = pts.slice(0, stopAt + 1), L = lengths(roadPart), total = L[L.length - 1];
+      // (the very first picture starts a bit higher so level 1 clears the bottom bar)
+      const s0 = k === 0 ? 0.14 : 0.06;
       for (let i = 0; i < MAP_LEVELS_PER_PICTURE; i++) {
-        nodes[k * MAP_LEVELS_PER_PICTURE + i + 1] = at(roadPart, L, total * (0.06 + 0.88 * i / (MAP_LEVELS_PER_PICTURE - 1)));
+        nodes[k * MAP_LEVELS_PER_PICTURE + i + 1] = at(roadPart, L, total * (s0 + (0.94 - s0) * i / (MAP_LEVELS_PER_PICTURE - 1)));
       }
       path = path.concat(pts);
     }
@@ -219,7 +221,13 @@ const Quest = (function () {
     function place(L, animate) {
       const p = nodes[L] || nodes[level];
       strip.style.transition = animate ? 'transform 1.4s cubic-bezier(.45,.05,.25,1)' : 'none';
-      strip.style.transform = 'translate(' + (S / 2 - p[0]) + 'px,' + (SH / 2 - p[1]) + 'px)';
+      // centred, but never so far that an edge of the picture comes into view
+      const tx = Math.min(0, Math.max(S - D, S / 2 - p[0]));
+      // (the bottom bar hides the very bottom, so the picture only needs to reach its top edge)
+      const nav = document.getElementById('nav');
+      const hidden = nav && nav.offsetParent ? Math.max(0, box.getBoundingClientRect().bottom - nav.getBoundingClientRect().top) : 0;
+      const ty = Math.min(-minY, Math.max(SH - hidden - maxY, SH / 2 - p[1]));
+      strip.style.transform = 'translate(' + tx + 'px,' + ty + 'px)';
     }
     const start = from && from !== level && nodes[from] ? from : level;
     place(start, false);
