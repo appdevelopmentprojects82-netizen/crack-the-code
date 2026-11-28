@@ -11,6 +11,9 @@ A phone puzzle game. Every level hides a secret code; players crack it from the 
 * Level-break ads come after the coins have been collected: after every 3rd level up to level 21, every 2nd level up to level 100, and every level after that.
 * 5 lives. Losing a level costs one; one comes back every 4 hours, or all 5 can be refilled for 1500 coins.
 * Daily targets: win 5 / 10 / 15 / 20 levels in a day for 20 / 20 / 20 / 40 coins (100 a day). Resets at midnight.
+* Watch & earn: 1 ad = 50 coins, 3 ads = 200 more, 5 ads = 300 more (every day). Rewarded ads last 30 seconds; shorter ads play back to back.
+* Levels never end. A half-played level carries on where it stopped when the app is opened again.
+* First-time guided instructions (dimmed screen, arrows) for how to play, the padlock and the spider web; the ? button shows them again.
 * Progress, coins, hints, lives, name and character are saved on the phone.
 
 ## Screens
@@ -19,12 +22,12 @@ A phone puzzle game. Every level hides a secret code; players crack it from the 
   daily targets (gift button), lives heart (shows FULL at 5), coins, settings (signed-in account, (sound, music, vibration, notifications, restore purchases, help & support)),
   the next level in the middle (tap to play) and "watch an ad for 100 coins".
 * Bottom icons: **Shop**, **Home**, **Leaderboard**.
-* **Shop**: coin packs, remove ads between levels, hints, lives, and a free ad for 100 coins.
+* **Shop**: a box for each coin pack and remove ads, shown at -50% with the full price crossed out (`PROMO_PERCENT` in `shop.js`); free coins from ads at the bottom.
   Prices are set in US dollars in `shop.js` and shown in the player's own currency, rounded up to .49 / .99.
-* **Leaderboard**: the player's own stats for now; world rankings need an online server.
+* **Leaderboard**: every player, once `LEADERBOARD_URL` in `leaderboard.js` is filled in (steps at the top of that file).
 
 ## Purchases
-Not connected yet: on the live site "buy" says purchases open soon; on your own computer it gives a free TEST purchase.
+Not connected yet: while `TEST_PURCHASES` is true every purchase is simulated for free (no money taken).
 Details are at the top of `shop.js`.
 
 ## Sign-in (Apple ID / Google)
@@ -58,5 +61,5 @@ After changing any file, raise `VERSION` in `sw.js` so installed copies update.
 
 ## Files
 `index.html`, `style.css`, `game.js` (the game), `app.js` (home, shop, profile, settings, leaderboard),
-`shop.js` (prices and purchases), `account.js` (sign-in), `ads.js`, `art/` (loading screen, wood background, gold coin), `sounds.js` (the same sounds and music as the live game),
+`shop.js` (prices and purchases), `account.js` (sign-in), `leaderboard.js`, `tour.js` (guided instructions), `ads.js`, `art/` (loading screen, wood background, gold coin), `sounds.js` (the same sounds and music as the live game),
 `pictures/1-5.jpg` (backgrounds, smaller copies of the live game's pictures), `icons/`, `manifest.json` and `sw.js` (home-screen install and offline play).

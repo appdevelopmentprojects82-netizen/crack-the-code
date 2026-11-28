@@ -53,7 +53,8 @@ const App = (function () {
         $('load-text').textContent = 'READY!';
         setTimeout(function () {
           $('splash').classList.add('gone');
-          show('home');
+          if (Game.inProgress()) play(); else show('home');
+          Board.push(S());
           setTimeout(function () { $('splash').remove(); }, 700);
         }, 250);
       }
@@ -88,7 +89,7 @@ const App = (function () {
     else show('home', true);
   }
   window.addEventListener('popstate', function () { closeModals(); show('home', true); });
-  function closeModals() { ['lives-modal', 'profile', 'settings', 'notice', 'daily'].forEach(function (id) { $(id).classList.add('hidden'); }); }
+  function closeModals() { ['lives-modal', 'profile', 'settings', 'notice', 'daily', 'adr'].forEach(function (id) { $(id).classList.add('hidden'); }); }
 
   function play() {
     show('game');
@@ -113,7 +114,10 @@ const App = (function () {
     document.querySelectorAll('.heart').forEach(function (h) { h.classList.toggle('full', s.lives >= Game.LIVES_MAX); });
     $('daily-btn').classList.toggle('ready', Game.dailyReady());
     if (!$('daily').classList.contains('hidden')) fillDaily();
+    if (!$('adr').classList.contains('hidden')) fillAds();
     $('play-level').textContent = s.level;
+    $('play-level').className = String(s.level).length >= 5 ? 'xlong' : String(s.level).length >= 4 ? 'long' : '';
+    $('home-ad').classList.toggle('ready', Game.adDay().count < Game.AD_LADDER[Game.AD_LADDER.length - 1].ads);
     avatarHTML($('pfp-btn'), s.avatar);
     const wait = Game.nextLifeIn();
     if (s.lives <= 0) $('play-note').textContent = wait ? '❤️ Next life in ' + clock(wait) : 'Out of lives';
@@ -129,16 +133,53 @@ const App = (function () {
     const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, sec = t % 60;
     return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
   }
-  setInterval(function () { if (screen === 'home' || !$('lives-modal').classList.contains('hidden') || !$('daily').classList.contains('hidden')) update(); }, 1000);
+  setInterval(function () { if (screen === 'home' || !$('lives-modal').classList.contains('hidden') || !$('daily').classList.contains('hidden') || !$('adr').classList.contains('hidden')) update(); }, 1000);
 
+  // max = end of the line; marks = [{ at, label, state: 'done' | 'ready' | '' }]
+  function ladder(el, max, value, marks) {
+    const key = max + '|' + value + '|' + marks.map(function (m) { return m.state; }).join(',');
+    if (el.dataset.key === key) return;
+    el.dataset.key = key;
+    el.innerHTML = '';
+    const track = document.createElement('div'); track.className = 'lad-track';
+    const fill = document.createElement('i'); fill.style.width = Math.min(100, value / max * 100) + '%';
+    track.appendChild(fill); el.appendChild(track);
+    marks.forEach(function (m) {
+      const k = document.createElement('div');
+      k.className = 'lad-mark ' + (m.state || (value >= m.at ? 'done' : ''));
+      k.style.left = (m.at / max * 100) + '%';
+      const r = document.createElement('b'); r.className = 'lad-prize'; coinText(r, m.label); k.appendChild(r);
+      const pin = document.createElement('i'); pin.className = 'lad-pin'; pin.textContent = m.state === 'done' ? '✓' : m.at; k.appendChild(pin);
+      el.appendChild(k);
+    });
+  }
+  function untilMidnight() {
+    const now = new Date();
+    return '⏳ ' + clock(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now);
+  }
+  function popCoins() {
+    ['home-coins', 'shop-coins', 'coins'].forEach(function (id) { const c = $(id); c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop'); });
+  }
+
+  // ======================= WATCH & EARN ===================================
+  // 1 ad = 50 coins, 3 ads = 200 more, 5 ads = 300 more (every day)
+  function openAds() { fillAds(); $('adr').classList.remove('hidden'); }
+  function fillAds() {
+    const a = Game.adDay(), L = Game.AD_LADDER, max = L[L.length - 1].ads;
+    ladder($('adr-line'), max, a.count, L.map(function (t) { return { at: t.ads, label: '+' + t.coins + ' 🪙', state: a.count >= t.ads ? 'done' : '' }; }));
+    $('adr-count').textContent = '🎬 ' + a.count + '/' + max;
+    $('adr-reset').textContent = untilMidnight();
+    const b = $('adr-watch');
+    b.disabled = a.count >= max;
+    b.textContent = a.count >= max ? '✓ ALL DONE TODAY' : '🎬 WATCH AD';
+  }
   function watchAdForCoins() {
     Ads.reward(function (watched) {
       if (!watched) { Game.toast('No ad available right now — try again later'); return; }
-      Game.addCoins(Game.AD_COINS);
-      Sounds.play('correct');
+      const got = Game.adWatched();
       buzz(40);
-      Game.toast('+' + Game.AD_COINS + ' 🪙');
-      ['home-coins', 'shop-coins', 'coins'].forEach(function (id) { const c = $(id); c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop'); });
+      if (got) { Sounds.play('correct'); Game.toast('+' + got + ' 🪙'); popCoins(); }
+      else Sounds.play('hint');
       update();
     }, Game.musicHooks);
   }
@@ -194,40 +235,22 @@ const App = (function () {
   // ======================= DAILY TARGETS ==================================
   function openDaily() { fillDaily(); $('daily').classList.remove('hidden'); }
   function fillDaily() {
-    const d = Game.daily();
-    const now = new Date();
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    $('dl-reset').textContent = '⏳ ' + clock(midnight - now);
-    const list = $('dl-list');
-    const key = d.day + '|' + d.wins + '|' + d.claimed.join(',');
-    if (list.dataset.key === key) return;              // only redraw when something changed
-    list.dataset.key = key;
-    list.innerHTML = '';
-    Game.DAILY_TARGETS.forEach(function (t, i) {
-      const done = d.claimed[i], ready = !done && d.wins >= t.levels;
-      const r = document.createElement('div');
-      r.className = 'dl-row' + (done ? ' done' : ready ? ' ready' : '');
-      const info = document.createElement('div'); info.className = 'dl-info';
-      const b = document.createElement('b'); b.textContent = 'Complete ' + t.levels + ' levels'; info.appendChild(b);
-      const bar = document.createElement('div'); bar.className = 'dl-bar';
-      const fill = document.createElement('i'); fill.style.width = Math.min(100, d.wins / t.levels * 100) + '%'; bar.appendChild(fill);
-      const n = document.createElement('span'); n.textContent = Math.min(d.wins, t.levels) + '/' + t.levels; bar.appendChild(n);
-      info.appendChild(bar);
-      const btn = document.createElement('button'); btn.className = 'dl-claim';
-      if (done) { btn.textContent = '✓'; btn.disabled = true; }
-      else coinText(btn, '+' + t.coins + ' 🪙');
-      if (!ready) btn.disabled = true;
-      btn.onclick = function () {
-        const got = Game.claimDaily(i);
-        if (!got) return;
-        Sounds.play('correct'); buzz([30, 40, 30]);
-        Game.toast('+' + got + ' 🪙');
-        const c = $('home-coins'); c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
-        update();
-      };
-      r.appendChild(info); r.appendChild(btn);
-      list.appendChild(r);
-    });
+    const d = Game.daily(), T = Game.DAILY_TARGETS, max = T[T.length - 1].levels;
+    ladder($('dl-line'), max, d.wins, T.map(function (t, i) {
+      return { at: t.levels, label: '+' + t.coins + ' 🪙', state: d.claimed[i] ? 'done' : d.wins >= t.levels ? 'ready' : '' };
+    }));
+    $('dl-count').textContent = '🔓 ' + Math.min(d.wins, max) + '/' + max;
+    $('dl-reset').textContent = untilMidnight();
+    $('dl-claim').disabled = !Game.dailyReady();
+  }
+  function claimDaily() {
+    let got = 0;
+    Game.DAILY_TARGETS.forEach(function (t, i) { got += Game.claimDaily(i); });
+    if (!got) return;
+    Sounds.play('correct'); buzz([30, 40, 30]);
+    Game.toast('+' + got + ' 🪙');
+    popCoins();
+    update();
   }
 
   // ======================= PROFILE ========================================
@@ -251,7 +274,7 @@ const App = (function () {
         b.onclick = function () { Game.toast('Unlocks at level ' + a.lvl); };
       } else {
         if (i === s.avatar) b.classList.add('chosen');
-        b.onclick = function () { s.avatar = i; Game.persist(); buzz(15); openProfile(); update(); };
+        b.onclick = function () { s.avatar = i; Game.persist(); buzz(15); openProfile(); update(); Board.push(s); };
       }
       grid.appendChild(b);
     });
@@ -263,6 +286,7 @@ const App = (function () {
     if (clean.length >= 3) s.name = clean;
     $('pf-name').value = s.name;
     Game.persist();
+    Board.push(s);
   }
 
   // ======================= SETTINGS =======================================
@@ -324,40 +348,42 @@ const App = (function () {
     const list = $('shop-list');
     list.innerHTML = '';
     const s = S();
-    function row(icon, title, sub, btnText, cls, onBuy, tag) {
-      const r = document.createElement('div');
-      r.className = 'shop-row ' + (cls || '');
-      const i = document.createElement('div'); i.className = 'shop-icon';
-      if (typeof icon === 'number') {                 // a pile of gold coins
-        i.classList.add('pile', 'p' + icon);
-        for (let k = 0; k < icon; k++) { const c = document.createElement('i'); c.className = 'coin'; i.appendChild(c); }
-      } else i.textContent = icon;
-      const t = document.createElement('div'); t.className = 'shop-name';
-      const b1 = document.createElement('b'); b1.textContent = title; t.appendChild(b1);
-      if (sub) { const sm = document.createElement('small'); sm.textContent = sub; t.appendChild(sm); }
-      const b = document.createElement('button'); b.className = 'price-btn'; coinText(b, btnText); b.onclick = onBuy;
-      if (tag) { const tg = document.createElement('span'); tg.className = 'tag'; tg.textContent = tag; r.appendChild(tg); }
-      r.appendChild(i); r.appendChild(t); r.appendChild(b);
-      list.appendChild(r);
-      return b;
-    }
-    row('🎬', '+' + Game.AD_COINS + ' coins', '', '▶ FREE', 'free', watchAdForCoins);
+    const grid = document.createElement('div'); grid.className = 'shop-grid';
     PRODUCTS.forEach(function (p) {
+      const box = document.createElement('div');
+      box.className = 'shop-box' + (p.noAds ? ' noads' : '');
+      if (p.tag) { const tg = document.createElement('span'); tg.className = 'tag'; tg.textContent = p.tag; box.appendChild(tg); }
+      const ic = document.createElement('div'); ic.className = 'shop-icon';
       if (p.coins) {
-        row(p.coins >= 10000 ? 3 : p.coins >= 5000 ? 2 : 1, p.coins.toLocaleString() + ' coins', '', Prices.local(p.usd), '',
-            function () { buy(p); }, p.tag);
-      } else if (p.noAds) {
-        const b = row('🚫', 'Remove ads', '',
-                      s.noAds ? 'OWNED ✓' : Prices.local(p.usd), 'noads', function () { if (!S().noAds) buy(p); });
-        b.disabled = s.noAds;
+        const n = p.coins >= 10000 ? 3 : p.coins >= 5000 ? 2 : 1;
+        ic.classList.add('pile', 'p' + n);
+        for (let k = 0; k < n; k++) { const c = document.createElement('i'); c.className = 'coin'; ic.appendChild(c); }
+      } else ic.textContent = '🚫';
+      box.appendChild(ic);
+      const t = document.createElement('b'); t.className = 'box-title';
+      t.textContent = p.coins ? p.coins.toLocaleString() : 'NO ADS'; box.appendChild(t);
+      const sub = document.createElement('small'); sub.textContent = p.coins ? 'COINS' : 'BETWEEN LEVELS'; box.appendChild(sub);
+      const owned = p.noAds && s.noAds;
+      const promo = document.createElement('div'); promo.className = 'promo';
+      const was = Prices.was(p.usd);
+      if (was && !owned) {
+        const off = document.createElement('span'); off.className = 'off'; off.textContent = '-' + PROMO_PERCENT + '%'; promo.appendChild(off);
+        const st = document.createElement('s'); st.textContent = was; promo.appendChild(st);
       }
+      box.appendChild(promo);
+      const b = document.createElement('button'); b.className = 'price-btn';
+      b.textContent = owned ? 'OWNED ✓' : Prices.local(p.usd);
+      b.disabled = owned;
+      b.onclick = function () { if (!(p.noAds && S().noAds)) buy(p); };
+      box.appendChild(b);
+      grid.appendChild(box);
     });
-    const hb = row('💡', Game.HINT_PACK_SIZE + ' hints', '', Game.HINT_PACK_PRICE + ' 🪙', 'coin-buy', function () {
-      if (Game.buyHints()) { Sounds.play('hint'); Game.toast('+' + Game.HINT_PACK_SIZE + ' hints!'); update(); }
-    });
-    hb.dataset.cost = Game.HINT_PACK_PRICE;
-    const lb = row('❤️', 'Refill lives', '', Game.LIFE_REFILL_PRICE.toLocaleString() + ' 🪙', 'coin-buy', refill);
-    lb.dataset.cost = Game.LIFE_REFILL_PRICE; lb.dataset.lives = 1;
+    list.appendChild(grid);
+    const free = document.createElement('button'); free.className = 'shop-free';
+    free.innerHTML = '<span class="fi">🎬</span><span class="ft"><b>FREE COINS</b><small></small></span><span class="fgo">▶</span>';
+    coinText(free.querySelector('small'), 'WATCH ADS · UP TO ' + Game.AD_LADDER.reduce(function (a, t) { return a + t.coins; }, 0) + ' 🪙 A DAY');
+    free.onclick = openAds;
+    list.appendChild(free);
     refreshShop();
   }
   function refreshShop() {
@@ -401,9 +427,33 @@ const App = (function () {
       stats.appendChild(d);
     });
     body.appendChild(stats);
-    const soon = document.createElement('div'); soon.className = 'rank-soon';
-    soon.innerHTML = '<div class="m-big">🌍</div><b>WORLD RANKINGS COMING SOON</b>';
-    body.appendChild(soon);
+    if (!Board.on()) {
+      const soon = document.createElement('div'); soon.className = 'rank-soon';
+      soon.innerHTML = '<div class="m-big">🌍</div><b>WORLD RANKINGS COMING SOON</b>';
+      body.appendChild(soon);
+      return;
+    }
+    const box = document.createElement('div'); box.className = 'rank-list';
+    box.innerHTML = '<div class="rank-wait">LOADING…</div>';
+    body.appendChild(box);
+    Board.push(s);
+    Board.load(function (top, all) {
+      box.innerHTML = '';
+      if (!top) { box.innerHTML = '<div class="rank-wait">OFFLINE — TRY AGAIN LATER</div>'; return; }
+      const mine = (all || []).findIndex(function (p) { return p.id === s.pid; });
+      if (mine >= 0) sm.textContent = 'RANK #' + (mine + 1) + ' · LEVEL ' + s.level + ' · ⭐ ' + s.stars;
+      top.forEach(function (p, k) {
+        const r = document.createElement('div');
+        r.className = 'rank-row' + (p.id === s.pid ? ' me' : '') + (k < 3 ? ' top' + (k + 1) : '');
+        const n = document.createElement('span'); n.className = 'rk'; n.textContent = k < 3 ? ['🥇', '🥈', '🥉'][k] : k + 1;
+        const pic = document.createElement('div'); pic.className = 'pfp'; avatarHTML(pic, p.avatar);
+        const nm = document.createElement('b'); nm.className = 'rn'; nm.textContent = p.name;
+        const lv = document.createElement('span'); lv.className = 'rl'; lv.textContent = 'LV ' + p.level;
+        const st = document.createElement('span'); st.className = 'rs'; st.textContent = '⭐ ' + p.stars;
+        [n, pic, nm, lv, st].forEach(function (x) { r.appendChild(x); });
+        box.appendChild(r);
+      });
+    });
   }
 
   // ======================= LITTLE HELPERS =================================
@@ -423,11 +473,14 @@ const App = (function () {
       };
     });
     $('play-btn').onclick = play;
-    $('home-ad').onclick = watchAdForCoins;
     $('home-lives').onclick = livesModal;
     $('pfp-btn').onclick = openProfile;
     $('daily-btn').onclick = openDaily;
     $('dl-close').onclick = function () { $('daily').classList.add('hidden'); };
+    $('dl-claim').onclick = claimDaily;
+    $('home-ad').onclick = openAds;
+    $('adr-watch').onclick = watchAdForCoins;
+    $('adr-close').onclick = function () { $('adr').classList.add('hidden'); };
     $('settings-btn').onclick = openSettings;
     $('lm-refill').onclick = refill;
     $('lm-close').onclick = function () { $('lives-modal').classList.add('hidden'); };
@@ -451,5 +504,6 @@ const App = (function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  return { home: home, show: show, livesModal: livesModal, livesChanged: livesChanged, buzz: buzz, update: update };
+  return { home: home, show: show, livesModal: livesModal, livesChanged: livesChanged, buzz: buzz, update: update,
+           onWin: function () { Board.push(S()); } };
 })();

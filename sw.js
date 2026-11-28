@@ -1,8 +1,8 @@
 // Keeps the game working offline once it has been opened.
 // Change VERSION whenever you change a file, so phones fetch the new one.
-const VERSION = 'ctcm-8';
+const VERSION = 'ctcm-9';
 const FILES = [
-  './', 'index.html', 'style.css?v=8', 'sounds.js?v=8', 'ads.js?v=8', 'account.js?v=8', 'shop.js?v=8', 'game.js?v=8', 'app.js?v=8',
+  './', 'index.html', 'style.css?v=9', 'sounds.js?v=9', 'ads.js?v=9', 'account.js?v=9', 'shop.js?v=9', 'leaderboard.js?v=9', 'tour.js?v=9', 'game.js?v=9', 'app.js?v=9',
   'manifest.json', 'art/splash.jpg', 'art/wood.jpg', 'art/coin.svg',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'pictures/1.jpg', 'pictures/2.jpg', 'pictures/3.jpg', 'pictures/4.jpg', 'pictures/5.jpg'
@@ -17,6 +17,7 @@ self.addEventListener('activate', function (e) {
 });
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== location.origin) return;   // online data (leaderboard, prices) is never cached
   e.respondWith(caches.match(e.request).then(function (hit) {
     return hit || fetch(e.request);
   }));

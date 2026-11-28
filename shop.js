@@ -7,10 +7,11 @@
    Exchange rates come from open.er-api.com (free, refreshed once a day);
    if that can't be reached the built-in rates below are used.
 
-   PAYMENTS: not connected yet. While PAYMENTS_LIVE is false:
-     - on the live site, "buy" explains that purchases open soon
-     - on your own computer (localhost) a TEST purchase is given for free,
-       so you can try the shop
+   PROMOTION: PROMO_PERCENT shows every price as a discount: the full price
+   (price / (1 - 50%)) is crossed out with "-50%" above it. 0 = no promotion.
+
+   PAYMENTS: not connected yet. While TEST_PURCHASES is true every "buy" is
+   a free, simulated purchase (no money is taken) so testers can try the shop.
    To take real money the game needs a payment provider. In the store
    version (see account.js) that is Apple / Google billing, e.g. with the
    plugin "cordova-plugin-purchase"; purchases then belong to the player's
@@ -23,6 +24,8 @@ const PRODUCTS = [
   { id: 'remove_ads',  noAds: true,  usd: 7.99 }
 ];
 const PAYMENTS_LIVE = false;
+const TEST_PURCHASES = true;     // simulated purchases for testing
+const PROMO_PERCENT = 50;         // shown as "-50%" with the full price crossed out
 
 // Used only when the live exchange rates can't be loaded (units per 1 US dollar).
 const FALLBACK_RATES = {
@@ -104,7 +107,6 @@ const Prices = (function () {
 
   // round UP to .49 / .99 (or to ...9 for currencies without cents)
   function charm(x, cur) {
-    if (cur === 'USD') return x;
     if (decimals(cur) === 0) {
       const step = Math.max(10, Math.pow(10, Math.floor(Math.log10(Math.max(x, 1))) - 1));
       return Math.ceil((x + 1) / step) * step - 1;
@@ -131,7 +133,14 @@ const Prices = (function () {
     return format(charm(usd * rate, currency), currency);
   }
 
-  return { local: local, refresh: refresh, currency: function () { return currency; }, _charm: charm,
+  // the crossed-out full price for the promotion
+  function was(usd) {
+    if (!(PROMO_PERCENT > 0)) return '';
+    const now = charm(usd * (rates[currency] || 1), currency);
+    return format(charm(now / (1 - PROMO_PERCENT / 100) + 1e-6, currency), currency);
+  }
+
+  return { local: local, was: was, refresh: refresh, currency: function () { return currency; }, _charm: charm,
            _set: function (c) { if (rates[c]) currency = c; } };
 })();
 
@@ -140,7 +149,7 @@ const Pay = (function () {
   // done(ok, message)
   function buy(product, done) {
     if (PAYMENTS_LIVE) { /* connect your payment provider here */ done(false, 'Payments are not connected.'); return; }
-    if (testing) { done(true, 'TEST purchase (only on your computer — no money taken)'); return; }
+    if (testing || TEST_PURCHASES) { done(true, 'Test purchase — no money taken.'); return; }
     done(false, 'Purchases open soon! Keep playing to earn coins.');
   }
   // asks the App Store / Google Play for everything bought with the signed-in account

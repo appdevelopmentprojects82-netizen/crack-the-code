@@ -28,6 +28,13 @@ const DAILY_TARGETS = [
   { levels: 15, coins: 20 },
   { levels: 20, coins: 40 }
 ];
+// WATCH & EARN: ads watched today -> coins (550 a day in total). Resets at midnight.
+const AD_LADDER = [
+  { ads: 1, coins: 50 },
+  { ads: 3, coins: 200 },
+  { ads: 5, coins: 300 }
+];
+// Levels never run out: codes keep getting new digits and locks forever.
 
 // Code length: 4 digits up to level 100, 5 digits from 101, 6 digits from 201.
 function digitsForLevel(level) { return level > 200 ? 6 : level > 100 ? 5 : 4; }
@@ -83,10 +90,13 @@ const Game = (function () {
     if (!s.name) s.name = randomName();
     if (!s.settings) s.settings = { vibrate: true, notify: false };
     s.noAds = !!s.noAds;
+    if (!s.pid) s.pid = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);   // leaderboard id
+    if (!s.seen) s.seen = {};
     if (s.cur) {                                // saves from older versions
       s.cur.revealed = s.cur.revealed || [];
       s.cur.locks = s.cur.locks || {};
       s.cur.extra = s.cur.extra || 0;
+      s.cur.entry = s.cur.entry || [];
     }
     return s;
   }
@@ -146,6 +156,21 @@ const Game = (function () {
     return t.coins;
   }
 
+  function adDay() {
+    if (!save.adDay || save.adDay.day !== today()) { save.adDay = { day: today(), count: 0 }; store(); }
+    return save.adDay;
+  }
+  // one more ad watched from the home page / shop; returns the coins it earned (0 between targets)
+  function adWatched() {
+    const a = adDay();
+    if (a.count >= AD_LADDER[AD_LADDER.length - 1].ads) return 0;
+    a.count++;
+    const hit = AD_LADDER.filter(function (t) { return t.ads === a.count; })[0];
+    if (hit) save.coins += hit.coins;
+    store();
+    return hit ? hit.coins : 0;
+  }
+
   // ======================= PUZZLES ========================================
   function makeLocks(n) {
     const L = save.level;
@@ -165,7 +190,7 @@ const Game = (function () {
     const n = digitsForLevel(save.level);
     save.cur = { code: shuffle(range(10)).slice(0, n),           // all digits different
                  guesses: [], revealed: [], locks: makeLocks(n), extra: 0, done: '', paid: false, collected: false };
-    entry = [];
+    entry = save.cur.entry = [];
     wasOpen = null;
     store();
   }
@@ -289,7 +314,7 @@ const Game = (function () {
         if (r === can && !c.done) {
           row.classList.add('next');
           row.onclick = function () { offerExtra(false); };
-          coinText(tag, '🔒 +1 TRY');
+          tag.textContent = '🔒 UNLOCK';
         } else tag.textContent = '🔒';
         row.appendChild(tag);
         grid.appendChild(row);
@@ -327,7 +352,7 @@ const Game = (function () {
     const free = board.clientHeight - $('tries').offsetHeight - 6 - (rows - 1) * 6;
     const byHeight = Math.floor(free / (open + (rows - open) * 0.55));   // locked rows are shorter
     const byWidth = Math.floor((board.clientWidth - (n - 1) * 7) / n);
-    $('grid').style.setProperty('--cell', Math.max(22, Math.min(54, byHeight, byWidth)) + 'px');
+    $('grid').style.setProperty('--cell', Math.max(24, Math.min(64, byHeight, byWidth)) + 'px');
   }
   window.addEventListener('resize', fitGrid);
 
@@ -336,11 +361,13 @@ const Game = (function () {
     if (busy || save.cur.done || entry.length >= save.cur.code.length) return;
     buzz(12);
     entry.push(d);
+    save.cur.entry = entry; store();
     render();
   }
   function back() {
     if (busy || save.cur.done) return;
     entry.pop();
+    save.cur.entry = entry; store();
     render();
   }
   function submit() {
@@ -351,7 +378,7 @@ const Game = (function () {
     c.guesses.push(entry.slice());
     flipRow = c.guesses.length - 1;
     const m = marks(entry, c.code);
-    entry = [];
+    entry = c.entry = [];
     if (m.every(function (k) { return k === 'hit'; })) c.done = 'won';
     else if (c.guesses.length >= allowed(c) && c.extra >= EXTRA_TRIES) { c.done = 'lost'; loseLife(); }
     store();
@@ -411,7 +438,7 @@ const Game = (function () {
     const c = save.cur;
     if (c.done || c.extra >= EXTRA_TRIES) return;
     extraOut = !!out;
-    $('ex-title').textContent = out ? 'OUT OF TRIES' : 'EXTRA TRY';
+    $('ex-title').textContent = out ? 'OUT OF TRIES' : 'UNLOCK A TRY';
     coinText($('ex-coins'), 'USE ' + EXTRA_TRY_PRICE + ' 🪙');
     $('ex-coins').disabled = save.coins < EXTRA_TRY_PRICE;
     $('ex-close').textContent = out ? 'GIVE UP' : 'NOT NOW';
@@ -425,7 +452,7 @@ const Game = (function () {
     $('extra-modal').classList.add('hidden');
     Sounds.play('hint');
     buzz([30, 40, 30]);
-    toast('🔓 +1 try!');
+    toast('🔓 Try unlocked!');
     render();
   }
   function extraByAd() {
@@ -458,6 +485,7 @@ const Game = (function () {
       d.wins++;
       store();
       if (DAILY_TARGETS.some(function (t) { return t.levels === d.wins; })) setTimeout(function () { toast('🎯 Daily target reached!'); }, 900);
+      if (window.App && App.onWin) App.onWin();
     }
     Sounds.playWin(4000);
     buzz([40, 60, 40, 60, 120]);
@@ -508,13 +536,55 @@ const Game = (function () {
       button: any ? 'TRY AGAIN ↻' : 'GET LIVES ❤️', action: any ? retry : function () { App.livesModal(); },
       button2: 'HOME', action2: function () { App.home(); }
     });
+    if (!any) setTimeout(function () { App.livesModal(); }, 700);
   }
-  function next() { save.level++; newPuzzle(); hideModal(); render(); }
+  function next() { save.level++; newPuzzle(); hideModal(); render(); maybeTour(); }
   function retry() {
     if (save.lives <= 0) { App.livesModal(); return; }
-    newPuzzle(); hideModal(); render();
+    newPuzzle(); hideModal(); render(); maybeTour();
   }
   function buzz(p) { if (window.App) App.buzz(p); }
+
+  // ======================= GUIDED INSTRUCTIONS ============================
+  // The screen dims, one part lights up, and a box with an arrow explains it.
+  function howToPlay(onEnd) {
+    const n = save.cur.code.length;
+    Tour.start([
+      { title: 'WELCOME TO CODE QUEST', text: 'Every level hides a secret code. Crack it to escape!' },
+      { el: '#code', title: 'THE SECRET CODE', text: 'These ' + n + ' boxes hide the code. Every digit is different.' },
+      { el: '#keypad', title: 'TYPE A GUESS', text: 'Tap ' + n + ' digits, then ✓ to try them.' },
+      { el: function () { return document.querySelector('#grid .row'); }, title: 'READ THE COLOURS',
+        html: '<span class="dot hit">7</span> right digit, right place<br><span class="dot near">3</span> in the code, wrong place<br><span class="dot miss">5</span> not in the code' },
+      { el: function () { return document.querySelector('#grid .row.locked'); }, title: 'LOCKED TRIES',
+        text: 'You have ' + MAX_TRIES + ' tries. Tap UNLOCK for up to ' + EXTRA_TRIES + ' more — watch an ad or pay ' + EXTRA_TRY_PRICE + ' 🪙.' },
+      { el: '#hint-btn', title: 'HINTS', text: 'Stuck? A hint shows one digit in its place.' },
+      { el: '#lives-chip', title: 'LIVES', text: 'Losing a level costs a life ❤️. One comes back every ' + (LIFE_REGEN_MINUTES / 60) + ' hours.' }
+    ], function () { save.seenHelp = true; store(); if (onEnd) onEnd(); });
+  }
+  function padlockTour(onEnd) {
+    Tour.start([
+      { el: '#code .code-box.padlock', title: 'PADLOCK 🔒', text: 'This box is locked: your guesses won’t show its colour.' },
+      { el: function () { const k = document.querySelector('#code .badge.key'); return k && k.parentNode; }, title: 'FIND THE KEY 🔑',
+        text: 'Get the right digit in the box with the key (it turns green) and the padlock opens. A hint opens it too.' }
+    ], function () { save.seen.padlock = true; store(); if (onEnd) onEnd(); });
+  }
+  function webTour(onEnd) {
+    Tour.start([
+      { el: '#code .code-box.web', title: 'SPIDER WEB 🕸️', text: 'The web hides this box’s colour. Find ' + WEB_BREAKS_AFTER +
+        ' other digits (green) and it breaks — the counter shows how many you have. A hint breaks it too.' }
+    ], function () { save.seen.web = true; store(); if (onEnd) onEnd(); });
+  }
+  // shows the right instructions the first time something new appears
+  function maybeTour() {
+    setTimeout(function () {
+      if (!playing || busy || Tour.active() || save.cur.done) return;
+      if (!$('modal').classList.contains('hidden') || !$('extra-modal').classList.contains('hidden')) return;
+      const run = function () { maybeTour(); };
+      if (!save.seenHelp) { howToPlay(run); return; }
+      if (!save.seen.padlock && document.querySelector('#code .code-box.padlock')) { padlockTour(run); return; }
+      if (!save.seen.web && document.querySelector('#code .code-box.web')) webTour(run);
+    }, 450);
+  }
 
   // music goes quiet while an ad plays
   let savedVolume = null;
@@ -590,7 +660,7 @@ const Game = (function () {
     $('hint-btn').onclick = hint;
     $('shop-buy').onclick = buyHints;
     $('shop-close').onclick = function () { $('shop').classList.add('hidden'); };
-    $('help-btn').onclick = function () { $('help').classList.remove('hidden'); };
+    $('help-btn').onclick = function () { if (!Tour.active()) howToPlay(); };
     $('help-close').onclick = function () { $('help').classList.add('hidden'); save.seenHelp = true; store(); };
     $('home-btn').onclick = function () { App.home(); };
     $('lives-chip').onclick = function () { App.livesModal(); };
@@ -623,12 +693,14 @@ const Game = (function () {
     playing = true;
     wasOpen = null;
     render();
-    if (!save.seenHelp) $('help').classList.remove('hidden');
-    else if (save.cur.done === 'won') win();
+    entry = (save.cur.entry || []).slice();
+    render();
+    if (save.cur.done === 'won') win();
     else if (!save.cur.done && save.cur.guesses.length >= allowed(save.cur)) offerExtra(true);
+    maybeTour();
     return true;
   }
-  function close() { playing = false; hideModal(); $('shop').classList.add('hidden'); $('extra-modal').classList.add('hidden'); }
+  function close() { playing = false; Tour.stop(); hideModal(); $('shop').classList.add('hidden'); $('extra-modal').classList.add('hidden'); }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
@@ -641,6 +713,8 @@ const Game = (function () {
     buyHints: function () { if (save.coins < HINT_PACK_PRICE) return false; save.coins -= HINT_PACK_PRICE; save.hints += HINT_PACK_SIZE; store(); return true; },
     afterRefill: function () { if (playing && save.cur.done === 'lost') retry(); },
     daily: daily, dailyReady: dailyReady, claimDaily: claimDaily, DAILY_TARGETS: DAILY_TARGETS,
+    adDay: adDay, adWatched: adWatched, AD_LADDER: AD_LADDER,
+    inProgress: function () { const c = save.cur; return !!c && !c.done && (c.guesses.length > 0 || (c.entry || []).length > 0); },
     toast: toast, musicHooks: musicHooks, LIVES_MAX: LIVES_MAX, LIFE_REFILL_PRICE: LIFE_REFILL_PRICE, AD_COINS: AD_COINS,
     HINT_PACK_PRICE: HINT_PACK_PRICE, HINT_PACK_SIZE: HINT_PACK_SIZE,
     // testing helpers
