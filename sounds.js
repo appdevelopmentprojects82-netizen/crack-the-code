@@ -144,11 +144,17 @@ const Sounds = (function () {
   // Everything plays inside a huge echoing hall. 4 beats per bar.
 
   // note name -> frequency, e.g. hz('A4') = 440
+  // each world plays the tune in its own key, speed and sound (see quest.js)
+  let worldShift = 0, worldBpm = MUSIC_BPM, boxWave = 'sine';
+  function setWorld(m) {
+    if (!m) return;
+    worldShift = m.shift || 0; worldBpm = m.bpm || MUSIC_BPM; boxWave = m.wave || 'sine';
+  }
   function hz(name) {
     const semis = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
     const m = /^([A-G])(#?)(\d)$/.exec(name);
     const midi = 12 * (parseInt(m[3], 10) + 1) + semis[m[1]] + (m[2] ? 1 : 0);
-    return 440 * Math.pow(2, (midi - 69) / 12);
+    return 440 * Math.pow(2, (midi - 69 + worldShift) / 12);
   }
 
   // Music-box tune: for each of the 16 bars a list of [step, note].
@@ -232,7 +238,7 @@ const Sounds = (function () {
   // broken music box: a clear ping, slightly out of tune, with a warble
   function musicBox(freq, t, gain) {
     const f = freq * 0.992;                        // a little flat = unsettling
-    note(musicIn, 'sine', f, t, 2.6, gain);
+    note(musicIn, boxWave, f, t, 2.6, boxWave === 'sine' ? gain : gain * 0.7);
     note(musicIn, 'sine', f * 1.006, t, 2.0, gain * 0.5);   // warble
     note(musicIn, 'sine', f * 2, t, 1.0, gain * 0.25);
     note(musicIn, 'sine', f * 5.4, t, 0.25, gain * 0.06);
@@ -383,7 +389,7 @@ const Sounds = (function () {
   function scheduleBeats() {
     if (!ctx || !musicOn || musicFileReady) return;
     buildMusicGraph();
-    const stepDur = 60 / MUSIC_BPM / 2;
+    const stepDur = 60 / worldBpm / 2;
     if (nextStepTime < ctx.currentTime) nextStepTime = ctx.currentTime + 0.1;
     while (nextStepTime < ctx.currentTime + 3) {
       playStep(stepIndex, nextStepTime, stepDur);
@@ -533,7 +539,7 @@ const Sounds = (function () {
 
   return {
     play: play, playWin: playWin, startMusic: startMusic, toggleMusic: toggleMusic, setVolume: setVolume,
-    setMusic: setMusic, setSfx: setSfx,
+    setMusic: setMusic, setSfx: setSfx, setWorld: setWorld,
     musicOn: function () { return musicOn; }, sfxOn: function () { return sfxOn; },
     // for testing: the audio engine, so its output level can be measured
     // testing only: run every step of the tune once (call with music OFF = silent)

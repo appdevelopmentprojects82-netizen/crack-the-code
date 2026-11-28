@@ -17,10 +17,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&display=swap">
   <link rel="preload" as="image" href="art/splash.jpg">
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
   <div id="bg"></div>
+  <div id="fx" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
 
   <!-- ===================== LOADING SCREEN ===================== -->
   <div id="splash">
@@ -51,13 +52,16 @@
 
     <div class="home-title">CODE QUEST</div>
 
-    <div class="home-mid">
-      <button id="play-btn" aria-label="Play the next level">
-        <span class="plaque-small">LEVEL</span>
-        <span id="play-level">1</span>
-        <span class="plaque-play">PLAY</span>
-      </button>
-      <div id="play-note"></div>
+    <div class="home-mid map" id="map"></div>
+    <div id="play-note" class="hidden"></div>
+
+    <div class="side-col left">
+      <button id="dp-btn" class="side-btn round dp" aria-label="Daily puzzle"><span>📅</span><small>DAILY</small><i class="ready-dot">!</i></button>
+      <button id="race-btn" class="side-btn round race" aria-label="Race a friend"><span>⚔️</span><small>RACE</small></button>
+    </div>
+    <div class="side-col right">
+      <button id="chest-btn" class="side-btn round chest" aria-label="Star chest"><span>🧰</span><b class="chest-meter"><i id="chest-fill"></i></b><small>CHEST</small><i class="ready-dot">!</i></button>
+      <button id="ach-btn" class="side-btn round ach" aria-label="Achievements"><span>🏅</span><small>GOALS</small><i class="ready-dot">!</i></button>
     </div>
 
     <button id="home-ad" class="ad-fab" aria-label="Watch ads for coins">
@@ -114,6 +118,7 @@
       <div class="clue-head">
         <span class="label">THE CODE</span>
         <button id="hint-btn">💡 HINT</button>
+        <button id="elim-btn" aria-label="Eliminate">🧹</button>
       </div>
       <div id="code"></div>
     </section>
@@ -154,6 +159,29 @@
       <div id="shop-short"></div>
       <button id="shop-buy" class="big-btn">BUY 3 HINTS · 700 <i class="coin"></i></button>
       <button id="shop-close" class="link-btn">NOT NOW</button>
+    </div>
+  </div>
+
+  <!-- eliminate -->
+  <div id="elim-modal" class="modal hidden">
+    <div class="card">
+      <div class="m-big">🧹</div>
+      <div class="sheet-title">ELIMINATE</div>
+      <div class="shop-text">Removes 3 digits that are not in the code from the keypad.</div>
+      <div id="el-have"></div>
+      <button id="el-use" class="big-btn">USE</button>
+      <button id="el-close" class="link-btn">NOT NOW</button>
+    </div>
+  </div>
+
+  <!-- daily puzzle, race, streak, chest, achievements -->
+  <div id="x-modal" class="modal hidden">
+    <div class="card">
+      <div class="m-big" id="x-icon"></div>
+      <div class="sheet-title" id="x-title"></div>
+      <div id="x-body"></div>
+      <button id="x-main" class="big-btn">OK</button>
+      <button id="x-close" class="link-btn">CLOSE</button>
     </div>
   </div>
 
@@ -217,9 +245,12 @@
         <div><b id="pf-level">1</b><span>LEVEL</span></div>
         <div><b id="pf-stars">0</b><span>STARS ⭐</span></div>
         <div><b id="pf-wins">0</b><span>ESCAPES</span></div>
+        <div><b id="pf-streak">0</b><span>STREAK</span></div>
       </div>
       <div class="field-label">CHOOSE YOUR CHARACTER</div>
       <div id="pf-grid"></div>
+      <div class="field-label">KEYPAD STYLE</div>
+      <div id="pf-skins"></div>
       <button id="pf-done" class="big-btn">DONE</button>
     </div>
   </div>
@@ -266,7 +297,11 @@
         <li><b>💡 Hint</b> shows one correct digit in its place. 3 hints cost <b>700 <i class="coin"></i></b>.</li>
         <li>🎁 <b>Daily targets</b>: win 5, 10, 15 and 20 levels in a day for up to <b>100 <i class="coin"></i></b>.</li>
         <li>🔒 A padlocked box hides its colours until you find the digit in the box with the 🔑.<br>
-            🕸️ A spider web hides its colours until you have found 3 other digits.</li>
+            🕸️ A spider web hides its colours until you have found 3 other digits.<br>
+            ❄️ An ice box shows its colour only on your 2nd, 4th and 6th guess.<br>
+            ⛓️ Two chained boxes stay hidden until both are right in the same guess.<br>
+            🌫️ In a fog box yellow and grey look the same.</li>
+        <li>👑 The last level of every world is a <b>boss</b>: 3 tries, ×3 coins.</li>
         <li>From level 101 codes have <b>5 digits</b>, from level 201 <b>6 digits</b>.</li>
       </ol>
       <div id="support-box"></div>
@@ -274,13 +309,15 @@
     </div>
   </div>
 
-  <script src="sounds.js?v=10"></script>
-  <script src="ads.js?v=10"></script>
-  <script src="account.js?v=10"></script>
-  <script src="shop.js?v=10"></script>
-  <script src="leaderboard.js?v=10"></script>
-  <script src="tour.js?v=10"></script>
-  <script src="game.js?v=10"></script>
-  <script src="app.js?v=10"></script>
+  <script src="sounds.js?v=11"></script>
+  <script src="ads.js?v=11"></script>
+  <script src="account.js?v=11"></script>
+  <script src="shop.js?v=11"></script>
+  <script src="leaderboard.js?v=11"></script>
+  <script src="tour.js?v=11"></script>
+  <script src="quest.js?v=11"></script>
+  <script src="game.js?v=11"></script>
+  <script src="extras.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

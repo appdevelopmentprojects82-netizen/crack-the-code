@@ -55,6 +55,7 @@ const App = (function () {
           $('splash').classList.add('gone');
           if (Game.inProgress()) play(); else show('home');
           Board.push(S());
+          Extras.onStart();
           setTimeout(function () { $('splash').remove(); }, 700);
         }, 250);
       }
@@ -81,6 +82,7 @@ const App = (function () {
     document.body.classList.toggle('in-game', name === 'game');
     if (name === 'shop') buildShop();
     if (name === 'ranks') buildRanks();
+    if (name === 'home') mapLevel = 0;              // redraw the map (and scroll to the next level)
     update();
   }
   function home() {
@@ -89,14 +91,17 @@ const App = (function () {
     else show('home', true);
   }
   window.addEventListener('popstate', function () { closeModals(); show('home', true); });
-  function closeModals() { ['lives-modal', 'profile', 'settings', 'notice', 'daily', 'adr'].forEach(function (id) { $(id).classList.add('hidden'); }); }
+  function closeModals() { ['lives-modal', 'profile', 'settings', 'notice', 'daily', 'adr', 'x-modal'].forEach(function (id) { $(id).classList.add('hidden'); }); }
 
-  function play() {
+  function play() { playMode('level'); }
+  // the quest, today's daily puzzle, or a race
+  function playMode(which, id) {
     show('game');
-    if (!Game.open()) show('home', true);
+    if (!Game.open(which, id)) show('home', true);
   }
 
   // ======================= HOME ===========================================
+  let mapLevel = 0;
   function avatarHTML(el, i) {
     const a = AVATARS[i] || AVATARS[0];
     el.style.setProperty('--av', AVATAR_COLOURS[i % AVATAR_COLOURS.length]);
@@ -115,15 +120,15 @@ const App = (function () {
     $('daily-btn').classList.toggle('ready', Game.dailyReady());
     if (!$('daily').classList.contains('hidden')) fillDaily();
     if (!$('adr').classList.contains('hidden')) fillAds();
-    $('play-level').textContent = s.level;
-    $('play-level').className = String(s.level).length >= 5 ? 'xlong' : String(s.level).length >= 4 ? 'long' : '';
+    if (screen === 'home' && (mapLevel !== s.level || !$('play-btn'))) { mapLevel = s.level; Quest.drawMap($('map'), s.level, play); }
+    Extras.refreshHome();
     $('home-ad').classList.toggle('ready', Game.adDay().count < Game.AD_LADDER[Game.AD_LADDER.length - 1].ads);
     avatarHTML($('pfp-btn'), s.avatar);
     const wait = Game.nextLifeIn();
-    if (s.lives <= 0) $('play-note').textContent = wait ? '❤️ Next life in ' + clock(wait) : 'Out of lives';
-    else if (s.level === 101) $('play-note').textContent = 'NEW: 5-DIGIT CODES!';
-    else if (s.level === 201) $('play-note').textContent = 'NEW: 6-DIGIT CODES!';
-    else $('play-note').textContent = '⭐ ' + s.stars;
+    const note = s.lives <= 0 ? (wait ? '❤️ Next life in ' + clock(wait) : 'Out of lives')
+      : s.level === 101 ? 'NEW: 5-DIGIT CODES!' : s.level === 201 ? 'NEW: 6-DIGIT CODES!' : '';
+    $('play-note').textContent = note;
+    $('play-note').classList.toggle('hidden', !note);
     Game.render();
     if (!$('lives-modal').classList.contains('hidden')) fillLives();
     if (screen === 'shop') refreshShop();
@@ -278,6 +283,8 @@ const App = (function () {
       }
       grid.appendChild(b);
     });
+    Extras.fillSkins($('pf-skins'));
+    $('pf-streak').textContent = '🔥 ' + ((s.streak && s.streak.run) || 0);
     $('profile').classList.remove('hidden');
   }
   function saveName() {
@@ -408,6 +415,7 @@ const App = (function () {
   }
 
   // ======================= LEADERBOARD ====================================
+  let rankTab = 'all';
   function buildRanks() {
     const s = S();
     const body = $('ranks-body');
@@ -427,6 +435,20 @@ const App = (function () {
       stats.appendChild(d);
     });
     body.appendChild(stats);
+    const tabs = document.createElement('div'); tabs.className = 'rank-tabs';
+    [['all', '🏆 ALL TIME'], ['daily', '📅 TODAY’S PUZZLE']].forEach(function (t) {
+      const b = document.createElement('button'); b.textContent = t[1]; b.className = rankTab === t[0] ? 'on' : '';
+      b.onclick = function () { rankTab = t[0]; buildRanks(); };
+      tabs.appendChild(b);
+    });
+    body.appendChild(tabs);
+    if (rankTab === 'daily' && Board.on()) {
+      const box = document.createElement('div'); box.className = 'rank-list';
+      box.innerHTML = '<div class="rank-wait">LOADING…</div>';
+      body.appendChild(box);
+      Extras.dailyList(box);
+      return;
+    }
     if (!Board.on()) {
       const soon = document.createElement('div'); soon.className = 'rank-soon';
       soon.innerHTML = '<div class="m-big">🌍</div><b>WORLD RANKINGS COMING SOON</b>';
@@ -472,7 +494,6 @@ const App = (function () {
         else show(go, true);
       };
     });
-    $('play-btn').onclick = play;
     $('home-lives').onclick = livesModal;
     $('pfp-btn').onclick = openProfile;
     $('daily-btn').onclick = openDaily;
@@ -505,5 +526,6 @@ const App = (function () {
   else init();
 
   return { home: home, show: show, livesModal: livesModal, livesChanged: livesChanged, buzz: buzz, update: update,
+           playMode: playMode, avatar: avatarHTML,
            onWin: function () { Board.push(S()); } };
 })();

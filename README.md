@@ -6,8 +6,15 @@ A phone puzzle game. Every level hides a secret code; players crack it from the 
 * 4 tries per level, plus 2 locked extra tries (each opened with an ad or 100 coins). Codes have 4 digits, 5 digits from level 101 and 6 digits from level 201.
 * Each win pays 40 coins; watching an ad doubles them.
 * A hint shows one correct digit in its place. Hints come in packs of 3 for 700 coins.
-* Locked boxes hide the colours for one position of the code: 🔒 a padlock opens once the digit in the box with the 🔑 has been found (from level 11).
-  🕸️ A spider web breaks once 3 other digits have been found (from level 31; both kinds from level 101).
+* **Quest map** on the home page: worlds of 20 levels (Enchanted Forest, Desert Tombs, Ice Caverns, Misty Marsh, Sky Temple,
+  Volcano Forge, Dragon's Keep, Starfall Citadel, then again as "II"…), each with its own colours, particles and music (`quest.js`).
+* **Obstacles**, one per level, from level 30 and then every 5-6 levels (never next to a boss): 🔒 padlock, 🕸️ spider web,
+  ❄️ ice (colour only on every 2nd guess), ⛓️ chain (two boxes hidden until both are right in one guess), 🌫️ fog (yellow looks grey).
+* **Boss** on the last level of every world: 3 tries, ×3 coins.
+* **Eliminate** 🧹 for 1500 coins removes 3 wrong digits from the keypad.
+* **Daily puzzle** (same code for everyone, 6 tries, own ranking) and **race a friend** (share a link, fewest tries wins 150 coins).
+* **Login streak** (7 days of rewards), **star chests** (every 30 stars), **achievements** that unlock keypad styles,
+  and a **close call** message when a level is won on the last try.
 * Level-break ads come after the coins have been collected: after every 3rd level up to level 21, every 2nd level up to level 100, and every level after that.
 * 5 lives. Losing a level costs one; one comes back every 4 hours, or all 5 can be refilled for 1500 coins.
 * Daily targets: win 5 / 10 / 15 / 20 levels in a day for 20 / 20 / 20 / 40 coins (100 a day). Resets at midnight.
@@ -61,5 +68,6 @@ After changing any file, raise `VERSION` in `sw.js` so installed copies update.
 
 ## Files
 `index.html`, `style.css`, `game.js` (the game), `app.js` (home, shop, profile, settings, leaderboard),
-`shop.js` (prices and purchases), `account.js` (sign-in), `leaderboard.js`, `tour.js` (guided instructions), `ads.js`, `art/` (loading screen, wood background, gold coin), `sounds.js` (the same sounds and music as the live game),
+`shop.js` (prices and purchases), `account.js` (sign-in), `leaderboard.js` (online rankings and races), `tour.js` (guided instructions),
+`quest.js` (worlds, obstacle schedule, quest map), `extras.js` (streak, chests, achievements, styles, daily puzzle, races), `ads.js`, `art/` (loading screen, wood background, gold coin), `sounds.js` (the same sounds and music as the live game),
 `pictures/1-5.jpg` (backgrounds, smaller copies of the live game's pictures), `icons/`, `manifest.json` and `sw.js` (home-screen install and offline play).
